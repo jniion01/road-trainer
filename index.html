@@ -554,16 +554,16 @@ function buildArm(i, start, signs, scen, stopKind, signDist){
   if(signs.length){
     const post=new THREE.Group(); post.position.set(HALF+1.0, 0, signDist);
     const h=signs.length>1?3.2:2.7;
-    const pole=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,h,8), M.pole); pole.position.y=h/2; pole.castShadow=true; post.add(pole);
+    const pole=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,h,8), M.pole); pole.position.set(0,h/2,-.09); pole.castShadow=true; post.add(pole);
     let y=h-.1;
     signs.forEach(code=>{
       const isPlate=code==='8.13'; const sz=isPlate?.72:1.0;
       const opt=isPlate?plateOpt(scen,i):{};
       y-= sz/2;
       const front=new THREE.Mesh(new THREE.PlaneGeometry(sz,sz), new THREE.MeshBasicMaterial({map:signTex(code,opt), transparent:true, alphaTest:.4, toneMapped:false}));
-      front.position.set(0,y,.04);
+      front.position.set(0,y,.02);
       const back=new THREE.Mesh(new THREE.PlaneGeometry(sz,sz), new THREE.MeshStandardMaterial({map:signTex(code,{...opt,back:true}), transparent:true, alphaTest:.4, roughness:.6}));
-      back.position.set(0,y,.03); back.rotation.y=Math.PI;
+      back.position.set(0,y,-.18); back.rotation.y=Math.PI;
       front.castShadow=true; post.add(front,back);
       y-= sz/2+.08;
     });
@@ -640,8 +640,8 @@ function makeCar(agent){
 function drawLabel(a){
   const {canvas:c, tex}=a.view.label; const g=c.getContext('2d'); g.clearRect(0,0,256,128);
   const idx=state.order.indexOf(a.key); const num=idx>=0?idx+1:null;
-  const arrows=state.arrows;
-  const w=arrows?178:92, x0=128-w/2;
+  const arrows=false;
+  const w=92, x0=128-w/2;
   g.shadowColor='rgba(0,0,0,.25)'; g.shadowBlur=10; g.shadowOffsetY=3;
   rr(g,x0,24,w,80,40); g.fillStyle='rgba(255,255,255,.96)'; g.fill(); g.shadowColor='transparent';
   if(arrows) arrowIcon(g,a.man,x0+50,64,48,'#1b2129');
@@ -652,6 +652,31 @@ function drawLabel(a){
   tex.needsUpdate=true;
 }
 
+function groundArrow(a, scen){
+  const c=a.path, L=c.len, ring=scen.mode==='ring';
+  const rin=ring?R_OUT-1:HALF+.5, rout=ring?R_OUT+3.2:HALF+3.2;
+  const s0=Math.min(L,a.s+2.7); let inside=false, s1=Math.min(L,s0+12);
+  for(let s=s0; s<L; s+=.25){ const p=c.getPointAt(s/L); const r=Math.hypot(p.x,p.z); if(r<rin) inside=true; if(inside && r>rout){ s1=s; break; } }
+  const W=.5, HW=1.25, HL=1.5, pos=[], idx=[];
+  const pt=s=>c.getPointAt(Math.min(1,s/L)), tg=s=>c.getTangentAt(Math.min(1,s/L));
+  const shaftEnd=s1-HL; let n=0;
+  for(let s=s0; s<=shaftEnd+1e-6; s=Math.min(shaftEnd, s+.35)){
+    const p=pt(s), t=tg(s), nx=-t.z, nz=t.x;
+    pos.push(p.x+nx*W/2,0,p.z+nz*W/2, p.x-nx*W/2,0,p.z-nz*W/2);
+    if(n>0){ const b=(n-1)*2; idx.push(b,b+1,b+2, b+1,b+3,b+2); } n++;
+    if(s>=shaftEnd) break;
+  }
+  const p=pt(shaftEnd), t=tg(shaftEnd), tip=pt(s1), nx=-t.z, nz=t.x, b=pos.length/3;
+  pos.push(p.x+nx*HW/2,0,p.z+nz*HW/2, p.x-nx*HW/2,0,p.z-nz*HW/2, tip.x,0,tip.z);
+  idx.push(b,b+1,b+2);
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setIndex(idx);
+  const col = isYou(a) ? '#ffffff' : a.css;
+  const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.92,side:THREE.DoubleSide,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,toneMapped:false}));
+  m.position.y=.07+(scen.agents.indexOf(a))*.004; m.renderOrder=2;
+  // dark outline underneath for contrast
+  const o=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:'#11151a',transparent:true,opacity:.35,side:THREE.DoubleSide,depthWrite:false}));
+  o.scale.set(1,1,1); o.position.y=.055; o.position.x=.0; const grp=new THREE.Group(); grp.add(o,m); return grp;
+}
 function pathFor(a, scen){
   if(scen.mode==='cross'){
     const i=a.arm, j=a.exit;
@@ -736,6 +761,7 @@ function newScenario(){
   scen.agents.forEach(a=>{
     a.view=makeCar(a); a.path=pathFor(a,scen); a.s=0; a.v=a.kind==='ring'?7:0;
     placeOnPath(a,0); world.add(a.view.group); drawLabel(a);
+    a.arrow=groundArrow(a,scen); a.arrow.visible=state.arrows; world.add(a.arrow);
     a.blinkSide = (a.man==='L'||a.man==='U') ? 'L' : (a.man==='R'||a.man==='exit') ? 'R' : null;
   });
   particles=[]; state.crash=null;
@@ -768,7 +794,7 @@ function closest(A,B){
 }
 let particles=[];
 function crash(Y,W,e){
-  state.phase='crash';
+  state.phase='crash'; Y.arrow.visible=false; W.arrow.visible=false;
   const tA=Math.max(Y.s+.5,e.sY-1.9), tB=Math.max(W.s+.5,e.sW-1.9);
   const dur=Math.min(1.9,Math.max(.9,Math.max(tA-Y.s,tB-W.s)/8.5));
   state.crash={Y,W,e,t0:performance.now(),dur,sY0:Y.s,sW0:W.s,tA,tB,hit:false};
@@ -799,7 +825,7 @@ function stepParticles(dt){
     if(u.life<=0){ m.parent&&m.parent.remove(m); m.geometry.dispose(); m.material.dispose(); return false; }
     return true; });
 }
-function driveStep(a,dt){ a.v=Math.min(12,a.v+7*dt); a.s=Math.min(a.path.len,a.s+a.v*dt); placeOnPath(a,a.s); }
+function driveStep(a,dt){ if(a.arrow) a.arrow.visible=false; a.v=Math.min(12,a.v+7*dt); a.s=Math.min(a.path.len,a.s+a.v*dt); placeOnPath(a,a.s); }
 function validOrder(order, edges){
   return order.every((k,idx)=>edges.filter(e=>e.y===k).every(e=>{ const p=order.indexOf(e.w); return p>=0 && p<idx; }));
 }
@@ -872,7 +898,7 @@ function explain(s){
 function startAnim(){
   const scen=state.scen;
   state.crash=null; particles.forEach(m=>{ m.parent&&m.parent.remove(m); }); particles=[];
-  scen.agents.forEach(a=>{ a.s=0; a.v=a.kind==='ring'?7:0; a.released=false; a.started=false; a.view.group.rotation.set(0,0,0); placeOnPath(a,0);
+  scen.agents.forEach(a=>{ a.s=0; a.v=a.kind==='ring'?7:0; a.released=false; a.started=false; a.view.group.rotation.set(0,0,0); placeOnPath(a,0); a.arrow.visible=state.arrows;
     if(a.flash) a.view.group.traverse(o=>{ if(o.isMesh && o.material.emissive && !o.material.userData.keep && o.material!==a.view.blink.L && o.material!==a.view.blink.R) o.material.emissiveIntensity=0; }); });
   const delay={}; scen.stages.forEach((g,k)=>g.forEach(key=>delay[key]=0.5+k*2.3));
   state.anim={t0:performance.now(), delay};
@@ -896,7 +922,7 @@ $('b-next').onclick=newScenario;
 $('b-skip').onclick=()=>{ if(state.phase==='ask') finish(false,true); };
 $('b-replay').onclick=startAnim;
 $('b-timer').onclick=()=>{ state.timer=TIMERS[(TIMERS.indexOf(state.timer)+1)%TIMERS.length]; persist(); toolsUI(); state.t0=performance.now(); };
-$('b-arrows').onclick=()=>{ state.arrows=!state.arrows; persist(); toolsUI(); state.scen.agents.forEach(drawLabel); };
+$('b-arrows').onclick=()=>{ state.arrows=!state.arrows; persist(); toolsUI(); state.scen.agents.forEach(a=>{ a.arrow.visible=state.arrows && a.s<1; drawLabel(a); }); };
 $('b-cam').onclick=()=>{ state.cam=state.cam==='driver'?'top':'driver'; toolsUI(); moveCam(); };
 function setMode(m){ if(state.mode===m) return; state.mode=m; persist(); toolsUI(); newScenario(); moveCam(); }
 $('m-cross').onclick=()=>setMode('cross'); $('m-ring').onclick=()=>setMode('ring');
@@ -938,7 +964,7 @@ function frame(now){
     const t=Math.max(0,(now-state.anim.t0)/1000);
     scen.agents.forEach(a=>{
       if(t<state.anim.delay[a.key] || a.s>=a.path.len) return;
-      a.v=Math.min(12,a.v+7*dt); a.s=Math.min(a.path.len,a.s+a.v*dt); placeOnPath(a,a.s);
+      a.arrow.visible=false; a.v=Math.min(12,a.v+7*dt); a.s=Math.min(a.path.len,a.s+a.v*dt); placeOnPath(a,a.s);
       if(a.s>3) a.view.label.sprite.visible = a.s < a.path.len-50;
     });
   } else {
