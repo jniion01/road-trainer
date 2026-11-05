@@ -32,6 +32,8 @@
   color-scheme:light;
 }
 [hidden]{display:none!important}
+html{overscroll-behavior:none}
+body{position:fixed;inset:0;overscroll-behavior:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);overflow:hidden;-webkit-font-smoothing:antialiased}
 #c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
@@ -141,7 +143,13 @@ body.phone .man canvas{width:24px;height:24px}
 body.phone .chip{padding:7px 10px 7px 8px;font-size:13px}
 body.phone .chip kbd{display:none}
 body.phone .hint{display:none}
-body.phone #why{max-height:20vh}
+body.phone #why{max-height:none}
+body.phone #dock{height:var(--dockH,40vh);display:flex;flex-direction:column;flex:none}
+body.phone #dock .timer{flex:none}
+body.phone #dock #signs{flex:none}
+body.phone .pane{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y}
+body.phone .chip{transition:none}
+body.phone .chip:active{transform:none}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -928,20 +936,30 @@ function setMode(m){ if(state.mode===m) return; state.mode=m; persist(); toolsUI
 $('m-cross').onclick=()=>setMode('cross'); $('m-ring').onclick=()=>setMode('ring');
 
 /* loop */
-function layout(){
+let baseW=0, baseH=0;
+function layout(force){
   const phone=PHONE.matches; document.body.classList.toggle('phone',phone);
   const sg=$('signs'); if(phone && sg.parentElement!==$('dock')) $('dock').insertBefore(sg,$('dock').children[1]);
   if(!phone && sg.parentElement!==$('mid')) $('mid').appendChild(sg);
-  if(phone){ const t=$('top').getBoundingClientRect().bottom+6, b=$('dock').getBoundingClientRect().top-6;
-    canvas.style.top=t+'px'; canvas.style.height=Math.max(120,b-t)+'px'; canvas.style.bottom='auto'; }
-  else { canvas.style.top='0'; canvas.style.height='100%'; }
-  resize();
+  // ignore mobile URL-bar show/hide: only re-layout on width change or a big height change
+  if(!force && innerWidth===baseW && Math.abs(innerHeight-baseH)<160) return;
+  baseW=innerWidth; baseH=innerHeight;
+  controls.enabled=!phone;
+  const ui=$('ui');
+  if(phone){
+    ui.style.height=baseH+'px'; ui.style.bottom='auto';
+    const dockH=Math.round(Math.min(baseH*0.43, 390));
+    document.documentElement.style.setProperty('--dockH',dockH+'px');
+    const t=$('top').getBoundingClientRect().bottom+6, b=$('dock').getBoundingClientRect().top-6;
+    canvas.style.top=t+'px'; canvas.style.height=Math.max(140,b-t)+'px'; canvas.style.bottom='auto';
+  } else { ui.style.height=''; ui.style.bottom=''; canvas.style.top='0'; canvas.style.height='100%'; }
+  resize(); moveCam(true);
 }
 function resize(){ const w=canvas.clientWidth||innerWidth, h=canvas.clientHeight||innerHeight; renderer.setSize(w,h,false); camera.aspect=w/h;
   camera.fov = PHONE.matches ? 58 : 48; camera.updateProjectionMatrix(); }
-addEventListener('resize',layout);
-new ResizeObserver(layout).observe($('dock')); new ResizeObserver(layout).observe($('top'));
-PHONE.addEventListener('change',()=>{ toolsUI(); moveCam(); });
+addEventListener('resize',()=>layout(false));
+addEventListener('orientationchange',()=>setTimeout(()=>layout(true),250));
+PHONE.addEventListener('change',()=>{ toolsUI(); layout(true); });
 let last=performance.now();
 function frame(now){
   const dt=Math.min(.05,(now-last)/1000); last=now;
@@ -994,7 +1012,7 @@ function frame(now){
   else renderer.render(scene,camera);
   requestAnimationFrame(frame);
 }
-toolsUI(); newScenario(); layout(); moveCam(true);
+toolsUI(); newScenario(); layout(true);
 requestAnimationFrame(frame);
 window.__road={state, genIntersection, genRound, validOrder};
 </script>
