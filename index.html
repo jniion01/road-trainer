@@ -1,0 +1,977 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+</head>
+<body>
+<title>Тренажёр перекрёстков</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=Unbounded:wght@500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: full-bleed 3D maquette; floating glass panels — top bar, sign card on the right, answer dock at the bottom. Single light look on purpose. */
+:root{
+  --bg:#e7ebe7;
+  --ink:#1b2129;
+  --muted:#626c78;
+  --paper:rgba(255,255,255,.88);
+  --paper-solid:#ffffff;
+  --line:rgba(27,33,41,.10);
+  --accent:#1f56c4;
+  --accent-soft:rgba(31,86,196,.10);
+  --ok:#1d8656;
+  --ok-soft:rgba(29,134,86,.12);
+  --bad:#cf3b3b;
+  --bad-soft:rgba(207,59,59,.12);
+  --f-display:"Unbounded","Golos Text",system-ui,sans-serif;
+  --f-body:"Golos Text",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+  --r:14px;
+  color-scheme:light;
+}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);overflow:hidden;-webkit-font-smoothing:antialiased}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#ui{position:fixed;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:calc(14px + env(safe-area-inset-top,0px)) calc(14px + env(safe-area-inset-bottom,0px))}
+#ui > *{pointer-events:auto}
+.glass{background:var(--paper);backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 8px 30px rgba(27,33,41,.08)}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;touch-action:manipulation}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+#top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px;align-self:stretch}
+.brand{display:flex;align-items:center;gap:10px;padding:0 6px 0 4px}
+.brand .mark{width:28px;height:28px;flex:none}
+.brand b{font-family:var(--f-display);font-weight:600;font-size:15px;letter-spacing:-.01em}
+.seg{display:flex;background:rgba(27,33,41,.06);border-radius:10px;padding:3px}
+.seg button{padding:7px 14px;border-radius:8px;font-weight:500;font-size:14px;color:var(--muted)}
+.seg button.on{background:var(--paper-solid);color:var(--ink);box-shadow:0 1px 3px rgba(27,33,41,.12)}
+.spacer{flex:1}
+.stat{display:flex;flex-direction:column;align-items:flex-end;line-height:1.05;padding:0 6px}
+.stat span{font-family:var(--f-mono);font-size:15px;font-variant-numeric:tabular-nums}
+.stat small{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.tool{padding:7px 11px;border-radius:9px;font-size:13px;font-weight:500;color:var(--muted);border:1px solid var(--line);background:var(--paper-solid)}
+.tool .short{display:none}
+.tool.on{color:var(--accent);border-color:rgba(31,86,196,.35);background:var(--accent-soft)}
+
+#mid{flex:1;display:flex;justify-content:flex-end;align-items:flex-start;pointer-events:none;padding-top:12px}
+#signs{pointer-events:auto;width:196px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.cap{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:600}
+#sign-imgs{display:flex;flex-direction:column;align-items:center;gap:6px;min-height:60px;justify-content:center}
+#sign-imgs img{display:block;filter:drop-shadow(0 2px 3px rgba(0,0,0,.18))}
+#sign-imgs img.big{width:108px;height:108px}
+#sign-imgs img.plate{width:76px;height:76px}
+#sign-imgs .none{font-size:13px;color:var(--muted);text-align:center;padding:16px 0}
+.sign-name{font-size:12.5px;color:var(--muted);text-align:center;line-height:1.35;text-wrap:balance}
+.man{display:flex;align-items:center;gap:10px;border-top:1px solid var(--line);padding-top:10px}
+.man canvas{width:32px;height:32px;flex:none}
+.man span{font-size:14px;font-weight:500}
+
+#dock{align-self:center;width:min(720px,100%);padding:0;overflow:hidden}
+.timer{height:4px;background:rgba(27,33,41,.07)}
+.timer i{display:block;height:100%;width:100%;background:var(--accent);transform-origin:left;transition:background .3s}
+.timer i.low{background:var(--bad)}
+.timer i.off{background:transparent}
+.pane{padding:14px 16px 16px;display:flex;flex-direction:column;gap:12px}
+.qrow{display:flex;align-items:baseline;gap:10px;justify-content:space-between}
+.q{margin:0;font-size:15px;font-weight:500;text-wrap:balance}
+.clock{font-family:var(--f-mono);font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums;flex:none}
+#chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:flex;align-items:center;gap:8px;padding:8px 12px 8px 10px;border-radius:999px;border:1px solid var(--line);background:var(--paper-solid);font-size:14px;font-weight:500;transition:transform .12s, border-color .12s, box-shadow .12s}
+.chip:hover{border-color:rgba(27,33,41,.25)}
+.chip:active{transform:scale(.97)}
+.chip .dot{width:14px;height:14px;border-radius:4px;background:var(--c);box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
+.chip .num{min-width:22px;height:22px;border-radius:11px;display:grid;place-items:center;font-family:var(--f-mono);font-size:12px;background:rgba(27,33,41,.06);color:var(--muted)}
+.chip.picked{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.chip.picked .num{background:var(--ink);color:#fff}
+.chip kbd{font-family:var(--f-mono);font-size:10px;color:var(--muted);opacity:.7}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ghost{padding:8px 12px;border-radius:10px;font-size:13px;color:var(--muted)}
+.ghost:hover{background:rgba(27,33,41,.05);color:var(--ink)}
+.primary{padding:10px 18px;border-radius:11px;background:var(--ink);color:#fff;font-weight:600;font-size:14px;display:flex;align-items:center;gap:10px}
+.primary kbd{font-family:var(--f-mono);font-size:11px;opacity:.6}
+.hint{font-size:12.5px;color:var(--muted);margin:0}
+
+.verdict{display:flex;align-items:center;gap:10px;font-family:var(--f-display);font-weight:600;font-size:17px;letter-spacing:-.01em}
+.verdict .badge{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;font-family:var(--f-body);font-size:16px}
+.verdict.ok{color:var(--ok)} .verdict.ok .badge{background:var(--ok-soft)}
+.verdict.bad{color:var(--bad)} .verdict.bad .badge{background:var(--bad-soft)}
+#rule{margin:0;font-size:14px;line-height:1.45;color:var(--ink)}
+#stages{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.stage{display:flex;align-items:center;gap:6px;padding:5px 10px 5px 6px;border-radius:9px;background:rgba(27,33,41,.05);font-size:13px}
+.stage b{font-family:var(--f-mono);font-size:11px;width:18px;height:18px;border-radius:5px;background:var(--ink);color:#fff;display:grid;place-items:center;font-weight:500}
+.stage i{width:10px;height:10px;border-radius:3px;background:var(--c);box-shadow:inset 0 0 0 1px rgba(0,0,0,.15);display:inline-block}
+.arrow-sep{color:var(--muted);font-size:12px}
+#why{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;max-height:26vh;overflow:auto}
+#why li{font-size:13.5px;line-height:1.45;padding-left:14px;position:relative;color:var(--ink)}
+#why li::before{content:"";position:absolute;left:2px;top:.6em;width:5px;height:5px;border-radius:50%;background:var(--muted)}
+#why li small{color:var(--muted)}
+
+body.phone #ui{padding-block:calc(8px + env(safe-area-inset-top,0px)) calc(8px + env(safe-area-inset-bottom,0px))}
+body.phone #top{gap:6px;padding:6px;flex-wrap:nowrap}
+body.phone #st-streak{display:none}
+body.phone .tool .long{display:none}
+body.phone .tool .short{display:inline}
+body.phone .seg button{padding:6px 9px!important}
+body.phone .stat small{font-size:9px}
+body.phone #dock #signs{width:auto;padding:10px 14px 0;flex-direction:row;align-items:center;gap:12px;background:none;border:0;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+body.phone #dock #signs .cap{display:block;writing-mode:vertical-rl;transform:rotate(180deg);font-size:9px;letter-spacing:.12em}
+body.phone #dock #sign-imgs{flex-direction:row;min-height:0;gap:6px}
+body.phone #dock #sign-imgs img.big{width:58px;height:58px}
+body.phone #dock #sign-imgs img.plate{width:46px;height:46px}
+body.phone #dock #sign-imgs .none{padding:0;font-size:12px}
+body.phone #dock .man{border-top:0;padding-top:0;margin-left:auto}
+body.phone .pane{padding:10px 14px 12px;gap:9px}
+body.phone .q{font-size:14px}
+body.phone .verdict{font-size:15px}
+body.phone #rule{font-size:13px}
+body.phone .brand{display:none}
+body.phone .tool{white-space:nowrap}
+body.phone .stat span{font-size:13px}
+body.phone .seg button{padding:6px 10px;font-size:13px}
+body.phone .tool{padding:6px 8px;font-size:12px}
+body.phone .stat{padding:0 2px}
+body.phone .sign-name{display:none}
+body.phone .man span{font-size:12px}
+body.phone .man canvas{width:24px;height:24px}
+body.phone .chip{padding:7px 10px 7px 8px;font-size:13px}
+body.phone .chip kbd{display:none}
+body.phone .hint{display:none}
+body.phone #why{max-height:20vh}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<canvas id="c" aria-label="3D-сцена перекрёстка"></canvas>
+<div id="ui">
+  <header id="top" class="glass">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 28 28" aria-hidden="true"><rect x="4" y="4" width="20" height="20" rx="3" transform="rotate(45 14 14)" fill="#fff" stroke="#1b2129" stroke-width="1.2"/><rect x="8.5" y="8.5" width="11" height="11" rx="1.5" transform="rotate(45 14 14)" fill="#f2b705"/></svg>
+      <b>Тренажёр перекрёстков</b>
+    </div>
+    <nav class="seg" aria-label="Режим">
+      <button id="m-cross" class="on">Перекрёсток</button>
+      <button id="m-ring">Кольцо</button>
+    </nav>
+    <div class="spacer"></div>
+    <div class="stat"><span id="s-acc">0/0</span><small>верно</small></div>
+    <div class="stat" id="st-streak"><span id="s-streak">0</span><small>серия</small></div>
+    <button id="b-timer" class="tool" title="Время на ответ">15 с</button>
+    <button id="b-arrows" class="tool on" title="Стрелки манёвров над машинами"><span class="long">Стрелки</span><span class="short" aria-hidden="true">↱</span></button>
+    <button id="b-cam" class="tool" title="Сменить вид камеры">Сверху</button>
+  </header>
+
+  <div id="mid">
+    <aside id="signs" class="glass" aria-label="Ваши знаки">
+      <div class="cap">Ваши знаки</div>
+      <div id="sign-imgs"></div>
+      <div class="sign-name" id="sign-name"></div>
+      <div class="man"><canvas id="man-ico" width="64" height="64"></canvas><span id="man-txt"></span></div>
+    </aside>
+  </div>
+
+  <section id="dock" class="glass">
+    <div class="timer"><i id="t-fill"></i></div>
+    <div id="ask" class="pane">
+      <div class="qrow">
+        <p class="q" id="q">Нажимайте на машины в том порядке, в каком они проедут</p>
+        <span class="clock" id="clock">15.0</span>
+      </div>
+      <div id="chips"></div>
+      <div class="row">
+        <p class="hint">Кто может ехать одновременно, можно нажимать в любом порядке.</p>
+        <div class="spacer"></div>
+        <button class="ghost" id="b-skip">Показать ответ</button>
+      </div>
+    </div>
+    <div id="res" class="pane" hidden>
+      <div class="verdict" id="verdict"></div>
+      <p id="rule"></p>
+      <div id="stages"></div>
+      <ul id="why"></ul>
+      <div class="row">
+        <button class="ghost" id="b-replay">Повторить анимацию</button>
+        <div class="spacer"></div>
+        <button class="primary" id="b-next">Дальше <kbd>Enter</kbd></button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ───────────── helpers ───────────── */
+const $ = id => document.getElementById(id);
+const rnd = (a,b) => a + Math.random()*(b-a);
+const pick = a => a[Math.floor(Math.random()*a.length)];
+const shuffle = a => { a=[...a]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; };
+const weighted = list => { const t=list.reduce((s,x)=>s+x.w,0); let r=Math.random()*t; for(const x of list){ if((r-=x.w)<=0) return x; } return list[list.length-1]; };
+const mod = (a,m=360) => ((a % m) + m) % m;
+const store = {
+  get(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } },
+  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+};
+
+/* ───────────── geometry constants ───────────── */
+// Sides: 0=S (you), 1=E, 2=N, 3=W. Counter-clockwise seen from above. Right of side i is i+1.
+const OUT = [[0,1],[1,0],[0,-1],[-1,0]];     // outward unit vectors (x,z); north = -z
+const ANG = [270,0,90,180];                  // polar angle, x=cos, z=-sin
+const HALF = 3.6, LANE = 1.8;
+const WAIT_X = 7.1;                          // car centre while waiting (intersection)
+const RC = 10.25, R_IN = 6.5, R_OUT = 14;    // roundabout
+const WAIT_R = 18.6, R_ARM = 13.2;
+const v3 = (x,z,y=0) => new THREE.Vector3(x,y,z);
+function laneIn(i,dist){ const o=OUT[i], d=[-o[0],-o[1]], r=[-d[1],d[0]]; return v3(o[0]*dist+r[0]*LANE, o[1]*dist+r[1]*LANE); }
+function laneOut(j,dist){ const o=OUT[j], r=[-o[1],o[0]]; return v3(o[0]*dist+r[0]*LANE, o[1]*dist+r[1]*LANE); }
+function ringPt(deg,r=RC){ const a=deg*Math.PI/180; return v3(Math.cos(a)*r, -Math.sin(a)*r); }
+function linePts(a,b,step=1.2){ const n=Math.max(1,Math.ceil(a.distanceTo(b)/step)); const out=[]; for(let k=0;k<=n;k++) out.push(a.clone().lerp(b,k/n)); return out; }
+function arcPts(a0,a1){ const d=mod(a1-a0); const n=Math.max(2,Math.ceil(d/5)); const out=[]; for(let k=0;k<=n;k++) out.push(ringPt(a0+d*k/n)); return out; }
+function mkCurve(pts){ const clean=[]; for(const p of pts){ if(!clean.length || clean[clean.length-1].distanceTo(p)>0.3) clean.push(p); } const c=new THREE.CatmullRomCurve3(clean,false,'centripetal'); c.len=c.getLength(); return c; }
+
+/* ───────────── people & cars ───────────── */
+const YOU = {key:'you', nom:'Вы', dat:'вам', css:'#ffffff', hex:0xf4f4f1};
+const PALETTE = [
+  {key:'red',    nom:'Красная', dat:'красной', css:'#e5484d', hex:0xe5484d},
+  {key:'blue',   nom:'Синяя',   dat:'синей',   css:'#3e63dd', hex:0x3e63dd},
+  {key:'green',  nom:'Зелёная', dat:'зелёной', css:'#2f9e6a', hex:0x2f9e6a},
+  {key:'yellow', nom:'Жёлтая',  dat:'жёлтой',  css:'#f2c230', hex:0xf2c230},
+];
+const isYou = a => a.key==='you';
+const yieldsTxt = a => isYou(a) ? 'Вы уступаете' : `${a.nom} уступает`;
+const MAN_NAME = {R:'Направо', S:'Прямо', L:'Налево', U:'Разворот', ring:'По кольцу дальше', exit:'Съезд с кольца'};
+
+/* ───────────── PDD logic: intersection ───────────── */
+function between(x,a,b){ return mod(x-a) < mod(b-a); }
+function pathsConflict(a,b){
+  if(a.exit===b.exit) return true;
+  const a1=ANG[a.arm]+10, b1=ANG[a.exit]-10, a2=ANG[b.arm]+10, b2=ANG[b.exit]-10;
+  return between(a2,a1,b1) !== between(b2,a1,b1);
+}
+const manOf = (arm,exit) => ({1:'R',2:'S',3:'L',0:'U'})[mod(exit-arm,4)];
+
+function genIntersection(){
+  for(let tries=0; tries<600; tries++){
+    const missing = Math.random()<0.33 ? pick([1,2,3]) : -1;
+    const arms = [0,1,2,3].filter(i=>i!==missing);
+    const has = i => arms.includes(i);
+    const cfgs = [{type:'equal', main:[], w:1.6}];
+    if(has(0)&&has(2)) cfgs.push({type:'straight', main:[0,2], w:2});
+    if(has(1)&&has(3)) cfgs.push({type:'straight', main:[1,3], w:2});
+    [[0,1],[0,3],[2,1],[2,3]].forEach(p=>{ if(has(p[0])&&has(p[1])) cfgs.push({type:'bent', main:p, w:1.4}); });
+    const cfg = weighted(cfgs);
+    const onMain = a => cfg.main.includes(a);
+    const useX = Math.random()<0.55;
+    const signs = {};
+    for(const a of arms){
+      if(cfg.type==='equal'){ signs[a] = useX ? ['1.6'] : []; continue; }
+      if(onMain(a)){
+        if(cfg.type==='bent') signs[a]=['2.1','8.13'];
+        else if(arms.length===4) signs[a]=[pick(['2.1','2.1','2.3.1'])];
+        else { const sec=arms.find(x=>!onMain(x)); const rel=mod(sec-a,4); signs[a]=[Math.random()<0.5?'2.1':(rel===1?'2.3.2':'2.3.3')]; }
+      } else {
+        signs[a] = [Math.random()<0.28?'2.5':'2.4'];
+        if(cfg.type==='bent') signs[a].push('8.13');
+      }
+    }
+    const pal = shuffle(PALETTE);
+    const nOthers = Math.min(arms.length-1, weighted([{n:1,w:1},{n:2,w:3},{n:3,w:2.4}]).n);
+    const otherArms = shuffle(arms.filter(a=>a!==0)).slice(0,nOthers);
+    const chooseExit = arm => { const ex=arms.filter(x=>x!==arm).map(x=>({x, w:({1:1,2:1.3,3:1.1})[mod(x-arm,4)]})); return weighted(ex).x; };
+    const agents = [{...YOU, arm:0, exit:chooseExit(0)}, ...otherArms.map((arm,k)=>({...pal[k], arm, exit:chooseExit(arm)}))];
+    agents.forEach(a=>{ a.man = manOf(a.arm,a.exit); a.main = onMain(a.arm); a.kind='car'; });
+    // yield graph
+    const edges=[];
+    for(let i=0;i<agents.length;i++) for(let j=i+1;j<agents.length;j++){
+      const A=agents[i], B=agents[j];
+      if(!pathsConflict(A,B)) continue;
+      let y=null, w=null, why='';
+      if(A.main!==B.main){ [y,w] = A.main ? [B,A] : [A,B]; why='main'; }
+      else if(mod(A.arm-B.arm,4)===2){
+        if(A.man==='L' && B.man!=='L'){ y=A; w=B; why='left'; }
+        else if(B.man==='L' && A.man!=='L'){ y=B; w=A; why='left'; }
+      } else {
+        if(mod(B.arm-A.arm,4)===1){ y=A; w=B; } else { y=B; w=A; }
+        why='right';
+      }
+      if(y) edges.push({y:y.key, w:w.key, why});
+    }
+    if(!edges.length) continue;
+    const stages = topo(agents, edges); if(!stages) continue;
+    if(!edges.some(e=>e.y==='you'||e.w==='you') && Math.random()<0.8) continue;
+    return {mode:'cross', arms, cfg, signs, agents, edges, stages};
+  }
+}
+function topo(agents, edges){
+  const lvl={}; const yieldsTo=k=>edges.filter(e=>e.y===k).map(e=>e.w);
+  const visiting=new Set();
+  const f=k=>{ if(k in lvl) return lvl[k]; if(visiting.has(k)) return NaN; visiting.add(k); let m=0; for(const w of yieldsTo(k)) m=Math.max(m,f(w)+1); visiting.delete(k); lvl[k]=m; return m; };
+  for(const a of agents){ if(Number.isNaN(f(a.key))) return null; }
+  const n=Math.max(...Object.values(lvl))+1; const st=Array.from({length:n},()=>[]);
+  agents.forEach(a=>st[lvl[a.key]].push(a.key)); return st;
+}
+
+/* ───────────── PDD logic: roundabout ───────────── */
+const ENTRY = i => ANG[i]+18, EXITA = j => ANG[j]-18;
+function genRound(){
+  for(let tries=0; tries<600; tries++){
+    const mode = weighted([{m:'yield',w:3},{m:'only',w:1.3},{m:'main',w:1.2}]).m;
+    const arms=[0,1,2,3];
+    const signs={};
+    arms.forEach(a=>{ signs[a] = mode==='yield' ? ['2.4','4.3'] : mode==='only' ? ['4.3'] : (a%2===0 ? ['2.1','4.3'] : ['2.4','4.3']); });
+    const mainArm = a => mode==='main' && a%2===0;
+    const pal=shuffle(PALETTE); let pi=0;
+    const you = {...YOU, kind:'enter', arm:0, exit: weighted([{x:1,w:1},{x:2,w:1.4},{x:3,w:1.2},{x:0,w:.3}]).x};
+    const agents=[you];
+    const ringN = weighted([{n:1,w:2},{n:2,w:1.6}]).n;
+    const ranges = shuffle([[172,240],[62,140]]);
+    const ringRanges = ringN===1 ? [[172,240]] : [[172,240], ranges.find(r=>r[0]!==172)];
+    for(const rg of ringRanges){
+      const a=rnd(rg[0],rg[1]);
+      const opts=arms.filter(j=>{ const d=mod(EXITA(j)-a); return d>9 && d<300; });
+      const ex=pick(opts);
+      agents.push({...pal[pi++], kind:'ring', ang:a, exit:ex});
+    }
+    if(Math.random()<0.5){
+      const arm=pick([1,2,3]);
+      agents.push({...pal[pi++], kind:'enter', arm, exit:pick(arms.filter(x=>x!==arm))});
+    }
+    agents.forEach(A=>{
+      if(A.kind==='enter'){ A.man = manOf(A.arm,A.exit); A.main = mainArm(A.arm); }
+      else { // next exit ahead → right blinker
+        const next = arms.slice().sort((p,q)=>mod(EXITA(p)-A.ang)-mod(EXITA(q)-A.ang))[0];
+        A.man = next===A.exit ? 'exit' : 'ring'; A.nextExit=next;
+      }
+    });
+    const edges=[];
+    for(const E of agents.filter(a=>a.kind==='enter')) for(const R of agents.filter(a=>a.kind==='ring')){
+      const dE=mod(ENTRY(E.arm)-R.ang), dX=mod(EXITA(R.exit)-R.ang);
+      if(!(dE<dX && dE<=140)) continue;
+      if(E.main) edges.push({y:R.key, w:E.key, why:'ringMain'});
+      else edges.push({y:E.key, w:R.key, why: mode==='only'?'ringOnly':'ring'});
+    }
+    const exitingBefore = agents.filter(R=>R.kind==='ring' && R.man==='exit' && R.exit===0);
+    if(!edges.length && !exitingBefore.length) continue;
+    if(!edges.some(e=>e.y==='you'||e.w==='you') && !exitingBefore.length && Math.random()<0.85) continue;
+    const stages=topo(agents,edges); if(!stages) continue;
+    return {mode:'ring', arms, ringMode:mode, signs, agents, edges, stages};
+  }
+}
+
+/* ───────────── sign textures (canvas) ───────────── */
+const texCache = new Map();
+function rr(g,x,y,w,h,r){ g.beginPath(); g.moveTo(x+r,y); g.arcTo(x+w,y,x+w,y+h,r); g.arcTo(x+w,y+h,x,y+h,r); g.arcTo(x,y+h,x,y,r); g.arcTo(x,y,x+w,y,r); g.closePath(); }
+function poly(g,pts){ g.beginPath(); pts.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1])); g.closePath(); }
+const RED='#d42a2a', BLUE='#1d5bbf', GREY='#9aa1a8';
+function signCanvas(code, opt={}){
+  const S=256, c=document.createElement('canvas'); c.width=c.height=S; const g=c.getContext('2d');
+  const back=opt.back; g.lineJoin='round'; g.lineCap='butt';
+  const triDown=[[26,44],[230,44],[128,222]], triUp=[[128,30],[230,210],[26,210]];
+  const tri=(pts)=>{ if(back){ poly(g,pts); g.fillStyle=GREY; g.fill(); g.lineWidth=14; g.strokeStyle=GREY; g.stroke(); return; }
+    poly(g,pts); g.fillStyle='#fff'; g.fill(); g.lineWidth=30; g.strokeStyle='#fff'; g.stroke(); g.lineWidth=22; g.strokeStyle=RED; g.stroke(); };
+  switch(code){
+    case '2.1': {
+      g.save(); g.translate(128,128); g.rotate(Math.PI/4);
+      rr(g,-86,-86,172,172,12); g.fillStyle=back?GREY:'#fff'; g.fill();
+      if(!back){ g.lineWidth=3; g.strokeStyle='#333'; g.stroke(); rr(g,-56,-56,112,112,6); g.fillStyle='#f2b705'; g.fill(); }
+      g.restore(); break;
+    }
+    case '2.4': tri(triDown); break;
+    case '1.6': case '2.3.1': case '2.3.2': case '2.3.3': {
+      tri(triUp); if(back) break;
+      g.strokeStyle='#111';
+      if(code==='1.6'){ g.lineWidth=15; g.beginPath(); g.moveTo(96,112); g.lineTo(160,182); g.moveTo(160,112); g.lineTo(96,182); g.stroke(); }
+      else {
+        g.lineWidth=8; g.beginPath();
+        if(code==='2.3.1'){ g.moveTo(88,150); g.lineTo(168,150); }
+        if(code==='2.3.2'){ g.moveTo(128,150); g.lineTo(170,150); }
+        if(code==='2.3.3'){ g.moveTo(86,150); g.lineTo(128,150); }
+        g.stroke(); g.lineWidth=18; g.beginPath(); g.moveTo(128,96); g.lineTo(128,190); g.stroke();
+      }
+      break;
+    }
+    case '2.5': {
+      const oct=r=>Array.from({length:8},(_,k)=>{const a=Math.PI/8+k*Math.PI/4; return [128+Math.cos(a)*r,128+Math.sin(a)*r];});
+      poly(g,oct(122)); g.fillStyle=back?GREY:'#fff'; g.fill(); if(back) break;
+      poly(g,oct(112)); g.fillStyle=RED; g.fill();
+      g.fillStyle='#fff'; g.font='700 66px "Golos Text", Arial, sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText('STOP',128,132);
+      break;
+    }
+    case '4.3': {
+      g.beginPath(); g.arc(128,128,122,0,Math.PI*2); g.fillStyle=back?GREY:'#fff'; g.fill(); if(back) break;
+      g.beginPath(); g.arc(128,128,114,0,Math.PI*2); g.fillStyle=BLUE; g.fill();
+      g.strokeStyle='#fff'; g.fillStyle='#fff'; g.lineWidth=17;
+      for(let k=0;k<3;k++){
+        const a0=-Math.PI/2 + k*2*Math.PI/3 + 0.35, a1=a0-1.25;
+        g.beginPath(); g.arc(128,128,64,a0,a1,true); g.stroke();
+        const ex=128+Math.cos(a1)*64, ey=128+Math.sin(a1)*64, tx=Math.sin(a1), ty=-Math.cos(a1);
+        const nx=Math.cos(a1), ny=Math.sin(a1);
+        g.beginPath(); g.moveTo(ex+tx*26, ey+ty*26); g.lineTo(ex+nx*22-tx*2, ey+ny*22-ty*2); g.lineTo(ex-nx*22-tx*2, ey-ny*22-ty*2); g.closePath(); g.fill();
+      }
+      break;
+    }
+    case '8.13': {
+      rr(g,12,12,232,232,10); g.fillStyle=back?GREY:'#fff'; g.fill(); if(back) break;
+      g.lineWidth=5; g.strokeStyle='#222'; g.stroke();
+      const end=[[128,226],[226,128],[128,30],[30,128]];
+      const draw=(rel,w)=>{ g.lineWidth=w; g.lineCap='butt'; g.beginPath(); g.moveTo(128,128); g.lineTo(end[rel][0],end[rel][1]); g.stroke(); };
+      g.strokeStyle='#111';
+      opt.arms.filter(r=>!opt.main.includes(r)).forEach(r=>draw(r,9));
+      g.lineCap='square'; opt.main.forEach(r=>draw(r,26));
+      g.fillStyle='#111'; g.beginPath(); g.arc(128,128,13,0,Math.PI*2); g.fill();
+      break;
+    }
+  }
+  return c;
+}
+function signTex(code,opt={}){
+  const key=code+JSON.stringify(opt); if(texCache.has(key)) return texCache.get(key);
+  const t=new THREE.CanvasTexture(signCanvas(code,opt)); t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=8; t.userData.keep=true; texCache.set(key,t); return t;
+}
+function plateOpt(scen, arm){
+  const rel=x=>mod(x-arm,4);
+  return {arms: scen.arms.map(rel).sort(), main: scen.cfg.main.map(rel).sort()};
+}
+const SIGN_NAMES = {
+  '2.1':'2.1 «Главная дорога»','2.4':'2.4 «Уступите дорогу»','2.5':'2.5 «Движение без остановки запрещено»',
+  '1.6':'1.6 «Пересечение равнозначных дорог»','2.3.1':'2.3.1 «Пересечение со второстепенной дорогой»',
+  '2.3.2':'2.3.2 «Примыкание второстепенной дороги справа»','2.3.3':'2.3.3 «Примыкание второстепенной дороги слева»',
+  '4.3':'4.3 «Круговое движение»','8.13':'табличка 8.13 «Направление главной дороги»'
+};
+
+/* ───────────── maneuver icons ───────────── */
+function arrowIcon(g,kind,cx,cy,s,color){
+  g.save(); g.translate(cx,cy); g.scale(s/100,s/100);
+  g.strokeStyle=color; g.fillStyle=color; g.lineWidth=12; g.lineCap='round'; g.lineJoin='round';
+  const head=(x,y,a)=>{ g.save(); g.translate(x,y); g.rotate(a); g.beginPath(); g.moveTo(20,0); g.lineTo(-8,-16); g.lineTo(-8,16); g.closePath(); g.fill(); g.restore(); };
+  g.beginPath();
+  if(kind==='S'){ g.moveTo(0,42); g.lineTo(0,-20); g.stroke(); head(0,-26,-Math.PI/2); }
+  else if(kind==='R' || kind==='exit'){ g.moveTo(-16,42); g.lineTo(-16,6); g.quadraticCurveTo(-16,-22,12,-22); g.stroke(); head(16,-22,0); }
+  else if(kind==='L'){ g.moveTo(16,42); g.lineTo(16,6); g.quadraticCurveTo(16,-22,-12,-22); g.stroke(); head(-16,-22,Math.PI); }
+  else if(kind==='U'){ g.moveTo(18,42); g.lineTo(18,-4); g.arc(-2,-4,20,0,Math.PI,true); g.lineTo(-22,16); g.stroke(); head(-22,22,Math.PI/2); }
+  else if(kind==='ring'){ g.arc(0,0,30,0.2,Math.PI*1.65,false); g.stroke(); const a=Math.PI*1.65; head(Math.cos(a)*30,Math.sin(a)*30,a+Math.PI/2); }
+  g.restore();
+}
+
+/* ───────────── three.js scene ───────────── */
+const canvas=$('c');
+const renderer=new THREE.WebGLRenderer({canvas, antialias:true, preserveDrawingBuffer:false});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.05;
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+const scene=new THREE.Scene();
+scene.background=new THREE.Color('#e7ebe7');
+scene.fog=new THREE.Fog('#e7ebe7', 70, 170);
+const camera=new THREE.PerspectiveCamera(48,1,0.5,400);
+const controls=new OrbitControls(camera, canvas);
+controls.enableDamping=true; controls.dampingFactor=0.08; controls.maxPolarAngle=Math.PI*0.47; controls.minDistance=8; controls.maxDistance=90;
+scene.add(new THREE.HemisphereLight('#ffffff','#b9c4b5',1.15));
+const sun=new THREE.DirectionalLight('#fff6e8',1.6); sun.position.set(-30,50,22); sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048); Object.assign(sun.shadow.camera,{left:-48,right:48,top:48,bottom:-48,near:1,far:140}); sun.shadow.bias=-0.0004; sun.shadow.normalBias=0.02;
+scene.add(sun);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(500,500), new THREE.MeshStandardMaterial({color:'#d3dbcf', roughness:1}));
+ground.rotation.x=-Math.PI/2; ground.receiveShadow=true; scene.add(ground);
+
+const M = {
+  asphalt:new THREE.MeshStandardMaterial({color:'#50565e', roughness:.95}),
+  mark:new THREE.MeshBasicMaterial({color:'#f3f3ee'}),
+  island:new THREE.MeshStandardMaterial({color:'#b9cbb2', roughness:1}),
+  curb:new THREE.MeshStandardMaterial({color:'#e6e8e4', roughness:.9}),
+  pole:new THREE.MeshStandardMaterial({color:'#8d949b', roughness:.5, metalness:.4}),
+  glass:new THREE.MeshStandardMaterial({color:'#2b3442', roughness:.18, metalness:.3}),
+  tire:new THREE.MeshStandardMaterial({color:'#22262b', roughness:.9}),
+  head:new THREE.MeshStandardMaterial({color:'#fffbe8', emissive:'#fff3c4', emissiveIntensity:.5}),
+  tail:new THREE.MeshStandardMaterial({color:'#b3171c', emissive:'#7a0b0e', emissiveIntensity:.4}),
+  stripe:new THREE.MeshStandardMaterial({color:'#1f56c4', roughness:.4}),
+};
+Object.values(M).forEach(m=>m.userData.keep=true);
+
+// static surroundings (seeded so the town stays put)
+(function town(){
+  let s=7; const r=()=>{ s=(s*16807)%2147483647; return (s-1)/2147483646; };
+  const cols=['#f1eee8','#e4e8ee','#ebe2d8','#dde6df','#e9e6f0'];
+  const env=new THREE.Group();
+  for(let q=0;q<4;q++){
+    const sx=q%2?1:-1, sz=q<2?1:-1;
+    for(let k=0;k<6;k++){
+      const w=6+r()*9, d=6+r()*9, h=4+r()*13;
+      const x=sx*(22+r()*40), z=sz*(22+r()*40);
+      const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d), new THREE.MeshStandardMaterial({color:cols[Math.floor(r()*cols.length)], roughness:.9}));
+      b.position.set(x,h/2,z); b.castShadow=b.receiveShadow=true; env.add(b);
+    }
+    for(let k=0;k<7;k++){
+      const x=sx*(17+r()*12), z=sz*(17+r()*12);
+      env.add(tree(x,z,0.8+r()*0.6));
+    }
+  }
+  scene.add(env);
+})();
+function tree(x,z,sc=1){
+  const t=new THREE.Group();
+  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.15,.2,1.2,6), new THREE.MeshStandardMaterial({color:'#8a7a66'}));
+  trunk.position.y=.6; const top=new THREE.Mesh(new THREE.IcosahedronGeometry(1.3,0), new THREE.MeshStandardMaterial({color:'#93b894', roughness:.9, flatShading:true}));
+  top.position.y=2.1; t.add(trunk,top); t.scale.setScalar(sc); t.position.set(x,0,z); t.traverse(o=>{o.castShadow=true;}); return t;
+}
+
+let world=null;
+function disposeWorld(){
+  if(!world) return; scene.remove(world);
+  world.traverse(o=>{ if(o.geometry) o.geometry.dispose(); const ms=o.material?(Array.isArray(o.material)?o.material:[o.material]):[];
+    ms.forEach(m=>{ if(m.userData.keep) return; if(m.map && !m.map.userData.keep) m.map.dispose(); m.dispose(); }); });
+  world=null;
+}
+function flat(w,l,mat,x,z,y=0.035){ const m=new THREE.Mesh(new THREE.PlaneGeometry(w,l),mat); m.rotation.x=-Math.PI/2; m.position.set(x,y,z); return m; }
+
+function buildArm(i, start, signs, scen, stopKind, signDist){
+  // local frame = S arm: road runs along +z from `start`; incoming lane is x>0 heading -z.
+  const g=new THREE.Group(); g.rotation.y=Math.atan2(OUT[i][0],OUT[i][1]);
+  const L=110;
+  const road=flat(HALF*2, L, M.asphalt, 0, start+L/2, 0.012); road.receiveShadow=true; g.add(road);
+  // edge lines
+  g.add(flat(.14, L, M.mark, HALF-.25, start+L/2), flat(.14, L, M.mark, -(HALF-.25), start+L/2));
+  // centre line: solid near junction, dashed beyond
+  const solidEnd=start+10;
+  g.add(flat(.15, solidEnd-start-1, M.mark, 0, start+1+(solidEnd-start-1)/2));
+  for(let z=solidEnd+1; z<start+L; z+=6) g.add(flat(.14, 3, M.mark, 0, z+1.5));
+  // stop / yield line on incoming half
+  const zl=start+0.9;
+  if(stopKind==='stop') g.add(flat(HALF-.4, .4, M.mark, (HALF-.4)/2+.1, zl));
+  if(stopKind==='yield'){ for(let x=.4; x<HALF-.4; x+=.9) g.add(flat(.5,.3,M.mark,x+.25,zl)); }
+  // sidewalk curbs
+  const cw=1.6; [HALF+cw/2, -(HALF+cw/2)].forEach(x=>{ const c=new THREE.Mesh(new THREE.BoxGeometry(cw,.14,L-1.5), M.curb); c.position.set(x,.07,start+1.5+(L-1.5)/2); c.receiveShadow=true; g.add(c); });
+  // signs (top to bottom) on the right of incoming traffic
+  if(signs.length){
+    const post=new THREE.Group(); post.position.set(HALF+1.0, 0, signDist);
+    const h=signs.length>1?3.2:2.7;
+    const pole=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,h,8), M.pole); pole.position.y=h/2; pole.castShadow=true; post.add(pole);
+    let y=h-.1;
+    signs.forEach(code=>{
+      const isPlate=code==='8.13'; const sz=isPlate?.72:1.0;
+      const opt=isPlate?plateOpt(scen,i):{};
+      y-= sz/2;
+      const front=new THREE.Mesh(new THREE.PlaneGeometry(sz,sz), new THREE.MeshBasicMaterial({map:signTex(code,opt), transparent:true, alphaTest:.4, toneMapped:false}));
+      front.position.set(0,y,.04);
+      const back=new THREE.Mesh(new THREE.PlaneGeometry(sz,sz), new THREE.MeshStandardMaterial({map:signTex(code,{...opt,back:true}), transparent:true, alphaTest:.4, roughness:.6}));
+      back.position.set(0,y,.03); back.rotation.y=Math.PI;
+      front.castShadow=true; post.add(front,back);
+      y-= sz/2+.08;
+    });
+    g.add(post);
+  }
+  return g;
+}
+
+function buildCrossWorld(scen){
+  const w=new THREE.Group();
+  const c=flat(HALF*2,HALF*2,M.asphalt,0,0,0.016); c.receiveShadow=true; w.add(c);
+  // corner sidewalk pads
+  const cw=1.6;
+  [[1,1],[1,-1],[-1,1],[-1,-1]].forEach(([sx,sz])=>{ const p=new THREE.Mesh(new THREE.BoxGeometry(cw,.14,cw),M.curb); p.position.set(sx*(HALF+cw/2),.07,sz*(HALF+cw/2)); w.add(p); });
+  // closed sides (T-junction)
+  [0,1,2,3].filter(i=>!scen.arms.includes(i)).forEach(i=>{
+    const g=new THREE.Group(); g.rotation.y=Math.atan2(OUT[i][0],OUT[i][1]);
+    const p=new THREE.Mesh(new THREE.BoxGeometry(HALF*2+cw*2,.14,cw),M.curb); p.position.set(0,.07,HALF+cw/2); g.add(p);
+    g.add(flat(HALF*2-.5,.14,M.mark,0,HALF-.25));
+    w.add(g);
+  });
+  scen.arms.forEach(i=>{
+    const sg=scen.signs[i]||[];
+    const kind = sg.includes('2.5')?'stop':sg.includes('2.4')?'yield':'none';
+    w.add(buildArm(i, HALF, sg, scen, kind, HALF+1.1));
+  });
+  return w;
+}
+function buildRingWorld(scen){
+  const w=new THREE.Group();
+  const ring=new THREE.Mesh(new THREE.RingGeometry(R_IN, R_OUT, 96), M.asphalt); ring.rotation.x=-Math.PI/2; ring.position.y=0.02; ring.receiveShadow=true; w.add(ring);
+  const isl=new THREE.Mesh(new THREE.CylinderGeometry(R_IN,R_IN,.3,64), M.island); isl.position.y=.15; isl.receiveShadow=true; w.add(isl);
+  const curb=new THREE.Mesh(new THREE.TorusGeometry(R_IN,.12,6,96), M.curb); curb.rotation.x=Math.PI/2; curb.position.y=.2; w.add(curb);
+  const lineIn=new THREE.Mesh(new THREE.RingGeometry(R_IN+.35,R_IN+.5,96), M.mark); lineIn.rotation.x=-Math.PI/2; lineIn.position.y=.04; w.add(lineIn);
+  w.add(tree(0,0,1.2));
+  const t2=tree(2.6,-1.5,.8), t3=tree(-2.4,1.8,.7); w.add(t2,t3);
+  scen.arms.forEach(i=>{
+    const sg=scen.signs[i]||[];
+    const kind=sg.includes('2.4')?'yield':'none';
+    w.add(buildArm(i, R_ARM, sg, scen, kind, R_ARM+3.2));
+  });
+  // splitter islands
+  scen.arms.forEach(i=>{ const g=new THREE.Group(); g.rotation.y=Math.atan2(OUT[i][0],OUT[i][1]);
+    const s=new THREE.Mesh(new THREE.BoxGeometry(.5,.16,4.5),M.curb); s.position.set(0,.08,R_OUT+3.2); g.add(s); w.add(g); });
+  return w;
+}
+
+/* cars */
+function makeCar(agent){
+  const g=new THREE.Group();
+  const bodyMat=new THREE.MeshStandardMaterial({color:agent.hex, roughness:.42, metalness:.08});
+  const body=new THREE.Mesh(new THREE.BoxGeometry(1.9,.78,4.2),bodyMat); body.position.y=.66;
+  const cab=new THREE.Mesh(new THREE.BoxGeometry(1.62,.6,2.1),M.glass); cab.position.set(0,1.34,.3);
+  const roof=new THREE.Mesh(new THREE.BoxGeometry(1.5,.08,1.9),bodyMat); roof.position.set(0,1.67,.3);
+  g.add(body,cab,roof);
+  if(isYou(agent)){ const st=new THREE.Mesh(new THREE.BoxGeometry(.42,.02,4.22),M.stripe); st.position.set(0,1.06,0); g.add(st); const st2=st.clone(); st2.scale.z=.45; st2.position.set(0,1.72,.3); g.add(st2); }
+  [[.98,1.38],[-.98,1.38],[.98,-1.38],[-.98,-1.38]].forEach(([x,z])=>{ const t=new THREE.Mesh(new THREE.BoxGeometry(.3,.62,.72),M.tire); t.position.set(x,.32,z); g.add(t); });
+  [-.62,.62].forEach(x=>{ const h=new THREE.Mesh(new THREE.BoxGeometry(.42,.18,.06),M.head); h.position.set(x,.78,-2.11); g.add(h);
+    const t=new THREE.Mesh(new THREE.BoxGeometry(.42,.16,.06),M.tail); t.position.set(x,.8,2.11); g.add(t); });
+  const blink={L:[],R:[]};
+  const bm=()=>new THREE.MeshStandardMaterial({color:'#7a5320', emissive:'#ff8c00', emissiveIntensity:0});
+  const mL=bm(), mR=bm();
+  [[-.86,-2.12],[-.86,2.12],[-1.0,-1.2]].forEach(([x,z],k)=>{ const b=new THREE.Mesh(new THREE.BoxGeometry(k===2?.04:.18,.14,k===2?.24:.06),mL); b.position.set(x,.8,z); g.add(b); });
+  [[.86,-2.12],[.86,2.12],[1.0,-1.2]].forEach(([x,z],k)=>{ const b=new THREE.Mesh(new THREE.BoxGeometry(k===2?.04:.18,.14,k===2?.24:.06),mR); b.position.set(x,.8,z); g.add(b); });
+  blink.L=mL; blink.R=mR;
+  g.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.userData.agent=agent.key; } });
+  // label
+  const lc=document.createElement('canvas'); lc.width=256; lc.height=128;
+  const lt=new THREE.CanvasTexture(lc); lt.colorSpace=THREE.SRGBColorSpace;
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:lt, depthTest:false, transparent:true}));
+  const ls=PHONE.matches?1.45:1; if(isYou(agent)){ sp.scale.set(2.2*ls,1.1*ls,1); sp.position.y=2.6; } else { sp.scale.set(3.0*ls,1.5*ls,1); sp.position.y=3.2; } sp.renderOrder=10; sp.userData.agent=agent.key; g.add(sp);
+  return {group:g, blink, label:{canvas:lc, tex:lt, sprite:sp}};
+}
+function drawLabel(a){
+  const {canvas:c, tex}=a.view.label; const g=c.getContext('2d'); g.clearRect(0,0,256,128);
+  const idx=state.order.indexOf(a.key); const num=idx>=0?idx+1:null;
+  const arrows=state.arrows;
+  const w=arrows?178:92, x0=128-w/2;
+  g.shadowColor='rgba(0,0,0,.25)'; g.shadowBlur=10; g.shadowOffsetY=3;
+  rr(g,x0,24,w,80,40); g.fillStyle='rgba(255,255,255,.96)'; g.fill(); g.shadowColor='transparent';
+  if(arrows) arrowIcon(g,a.man,x0+50,64,48,'#1b2129');
+  const cx=arrows?x0+w-46:128;
+  g.beginPath(); g.arc(cx,64,28,0,Math.PI*2);
+  if(num){ g.fillStyle='#1b2129'; g.fill(); g.fillStyle='#fff'; g.font='600 32px "JetBrains Mono", monospace'; g.textAlign='center'; g.textBaseline='middle'; g.fillText(String(num),cx,66); }
+  else { g.fillStyle=a.css; g.fill(); g.lineWidth=4; g.strokeStyle='rgba(0,0,0,.18)'; g.stroke(); if(isYou(a)){ g.fillStyle='#1f56c4'; g.font='600 22px "Golos Text", sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText('Вы',cx,66);} }
+  tex.needsUpdate=true;
+}
+
+function pathFor(a, scen){
+  if(scen.mode==='cross'){
+    const i=a.arm, j=a.exit;
+    const pe=laneIn(i,HALF), px=laneOut(j,HALF);
+    let mid;
+    if(a.man==='S') mid=linePts(pe,px,1);
+    else { const d=[-OUT[i][0],-OUT[i][1]]; const ctrl= d[0]===0 ? v3(pe.x,px.z) : v3(px.x,pe.z);
+      mid=new THREE.QuadraticBezierCurve3(pe,ctrl,px).getPoints(14); }
+    return mkCurve([...linePts(laneIn(i,WAIT_X),pe), ...mid, ...linePts(px,laneOut(j,90),3)]);
+  }
+  if(a.kind==='enter'){
+    const i=a.arm, j=a.exit; let e0=ENTRY(i), e1=EXITA(j); if(i===j) e1=e0+mod(EXITA(j)-e0);
+    return mkCurve([...linePts(laneIn(i,WAIT_R),laneIn(i,R_OUT+1.6)), ...arcPts(e0,e1), ...linePts(laneOut(j,R_OUT+1.6),laneOut(j,90),3)]);
+  }
+  return mkCurve([...arcPts(a.ang,EXITA(a.exit)), ...linePts(laneOut(a.exit,R_OUT+1.6),laneOut(a.exit,90),3)]);
+}
+function placeOnPath(a,s){
+  const c=a.path, u=Math.min(1,Math.max(0,s/c.len));
+  const p=c.getPointAt(u), t=c.getTangentAt(u);
+  a.view.group.position.copy(p); a.view.group.rotation.y=Math.atan2(-t.x,-t.z);
+}
+
+/* ───────────── state & UI ───────────── */
+const TIMERS=[10,15,25,0];
+const PHONE=matchMedia('(max-width:760px), (pointer:coarse) and (max-width:1100px)');
+const saved=store.get('road-trainer-v1',{});
+const state={
+  mode: saved.mode||'cross', timer: TIMERS.includes(saved.timer)?saved.timer:15, arrows: saved.arrows!==false,
+  cam: 'driver', stats: saved.stats||{cross:{ok:0,n:0,streak:0}, ring:{ok:0,n:0,streak:0}},
+  scen:null, order:[], phase:'ask', t0:0, anim:null
+};
+function persist(){ store.set('road-trainer-v1',{mode:state.mode,timer:state.timer,arrows:state.arrows,stats:state.stats}); }
+
+function camPreset(){
+  const ring=state.mode==='ring';
+  if(state.cam==='driver' && PHONE.matches) return ring ? {p:v3(1,35,17), t:v3(0,1.5,0)} : {p:v3(1,19,11), t:v3(0,-1.5,0)};
+  if(state.cam==='driver') return ring ? {p:v3(LANE+.2,34,5.6), t:v3(0,-2,0)} : {p:v3(LANE+.1,19.5,3.9), t:v3(0,-3,.4)};
+  const dz=0;
+  return ring ? {p:v3(0,30+dz,52), t:v3(0,dz,2)} : {p:v3(0,22+dz,40), t:v3(0,dz,1)};
+}
+let camAnim=null;
+function moveCam(instant){
+  const {p,t}=camPreset();
+  if(instant){ camera.position.copy(p); controls.target.copy(t); controls.update(); return; }
+  camAnim={p0:camera.position.clone(), t0:controls.target.clone(), p, t, s:performance.now()};
+}
+
+function signsUI(scen){
+  const box=$('sign-imgs'); box.innerHTML='';
+  const sg=scen.signs[0]||[];
+  if(!sg.length){ box.innerHTML='<div class="none">Знаков нет</div>'; }
+  sg.forEach(code=>{ const img=new Image(); img.alt=SIGN_NAMES[code]; img.className=code==='8.13'?'plate':'big';
+    img.src=signCanvas(code, code==='8.13'?plateOpt(scen,0):{}).toDataURL(); box.appendChild(img); });
+  $('sign-name').textContent = sg.length ? sg.map(c=>SIGN_NAMES[c]).join(' + ') : 'Перекрёсток без знаков приоритета';
+  const you=scen.agents[0];
+  const ic=$('man-ico'), g=ic.getContext('2d'); g.clearRect(0,0,64,64); arrowIcon(g,you.man,32,32,52,'#1b2129');
+  $('man-txt').textContent = scen.mode==='ring' ? ({1:'Первый съезд (направо)',2:'Второй съезд (прямо)',3:'Третий съезд (налево)',0:'Разворот'})[you.exit] : 'Ваш манёвр: '+MAN_NAME[you.man].toLowerCase();
+}
+function chipsUI(){
+  const box=$('chips'); box.innerHTML='';
+  state.scen.agents.forEach((a,k)=>{
+    const b=document.createElement('button'); b.className='chip'; b.style.setProperty('--c',a.css); b.dataset.k=a.key;
+    const idx=state.order.indexOf(a.key); if(idx>=0) b.classList.add('picked');
+    b.innerHTML=`<span class="dot"></span>${a.nom}<span class="num">${idx>=0?idx+1:'·'}</span><kbd>${k+1}</kbd>`;
+    b.onclick=()=>pickAgent(a.key); box.appendChild(b);
+  });
+}
+function statsUI(){ const s=state.stats[state.mode]; $('s-acc').textContent=`${s.ok}/${s.n}`; $('s-streak').textContent=s.streak; }
+function toolsUI(){
+  $('b-timer').textContent = state.timer ? `${state.timer} с` : (PHONE.matches?'∞':'Без таймера');
+  $('b-arrows').classList.toggle('on',state.arrows);
+  $('b-cam').textContent = PHONE.matches ? 'Вид' : (state.cam==='driver' ? 'Сверху' : 'Из машины');
+  $('m-cross').classList.toggle('on',state.mode==='cross'); $('m-ring').classList.toggle('on',state.mode==='ring');
+}
+
+function newScenario(){
+  state.scen = state.mode==='cross' ? genIntersection() : genRound();
+  const scen=state.scen;
+  state.order=[]; state.phase='ask'; state.anim=null; state.t0=performance.now();
+  disposeWorld();
+  world = scen.mode==='cross' ? buildCrossWorld(scen) : buildRingWorld(scen);
+  scen.agents.forEach(a=>{
+    a.view=makeCar(a); a.path=pathFor(a,scen); a.s=0; a.v=a.kind==='ring'?7:0;
+    placeOnPath(a,0); world.add(a.view.group); drawLabel(a);
+    a.blinkSide = (a.man==='L'||a.man==='U') ? 'L' : (a.man==='R'||a.man==='exit') ? 'R' : null;
+  });
+  particles=[]; state.crash=null;
+  scen.agents.forEach(a=>{ a.released=false; a.started=false; });
+  scen.edges.forEach(e=>{ const cp=closest(byKey(e.y).path, byKey(e.w).path); e.sY=cp.a; e.sW=cp.b; e.clearW=cp.b+5.5; });
+  scene.add(world);
+  signsUI(scen); chipsUI(); statsUI();
+  $('ask').hidden=false; $('res').hidden=true;
+  $('q').textContent = scen.mode==='cross' ? 'Нажмите на машину, которая едет первой, потом на следующую. Ошибётесь будет авария' : 'Нажимайте на машины по очереди: кто едет первым? Ошибётесь будет авария';
+}
+
+const byKey=k=>state.scen.agents.find(a=>a.key===k);
+function pickAgent(key){
+  if(state.phase!=='ask' || state.order.includes(key)) return;
+  const scen=state.scen, a=byKey(key);
+  const blocker = scen.edges.find(e=>e.y===key && !state.order.includes(e.w));
+  state.order.push(key); scen.agents.forEach(drawLabel); chipsUI();
+  if(blocker){ crash(a, byKey(blocker.w), blocker); return; }
+  a.released=true;
+  if(state.order.length===scen.agents.length) finish(false);
+}
+function closest(A,B){
+  const N=150, la=Math.min(A.len,52), lb=Math.min(B.len,52);
+  const pa=[],pb=[]; for(let i=0;i<=N;i++){ pa.push([la*i/N, A.getPointAt(la*i/N/A.len)]); pb.push([lb*i/N, B.getPointAt(lb*i/N/B.len)]); }
+  let best=null, near=null;
+  for(const [sa,p] of pa) for(const [sb,q] of pb){ const d=p.distanceTo(q);
+    if(!best||d<best.d) best={a:sa,b:sb,d,p:p.clone().lerp(q,.5)};
+    if(d<1.3 && (!near || sa+sb<near.a+near.b)) near={a:sa,b:sb,d,p:p.clone().lerp(q,.5)}; }
+  return near||best;
+}
+let particles=[];
+function crash(Y,W,e){
+  state.phase='crash';
+  const tA=Math.max(Y.s+.5,e.sY-1.9), tB=Math.max(W.s+.5,e.sW-1.9);
+  const dur=Math.min(1.9,Math.max(.9,Math.max(tA-Y.s,tB-W.s)/8.5));
+  state.crash={Y,W,e,t0:performance.now(),dur,sY0:Y.s,sW0:W.s,tA,tB,hit:false};
+}
+function impact(c){
+  const {Y,W}=c; c.hit=true; c.th=performance.now(); c.shake=.55;
+  const tY=Y.path.getTangentAt(Math.min(1,Y.s/Y.path.len)), tW=W.path.getTangentAt(Math.min(1,W.s/W.path.len));
+  Y.vel=tW.clone().multiplyScalar(5.5).add(tY.clone().multiplyScalar(2)); W.vel=tY.clone().multiplyScalar(4.5).add(tW.clone().multiplyScalar(2));
+  Y.spin=(Math.random()<.5?-1:1)*rnd(2.5,4.5); W.spin=(Math.random()<.5?-1:1)*rnd(2,4);
+  const mid=Y.view.group.position.clone().lerp(W.view.group.position,.5);
+  const cols=['#ff8a00','#ffd166','#f4f4f1','#9aa1a8',Y.css,W.css];
+  for(let i=0;i<46;i++){
+    const m=new THREE.Mesh(new THREE.BoxGeometry(rnd(.08,.28),rnd(.08,.22),rnd(.08,.28)), new THREE.MeshStandardMaterial({color:pick(cols),emissive:i<16?'#ff7a00':'#000',emissiveIntensity:i<16?1.4:0,transparent:true}));
+    m.position.copy(mid).setY(.9); const a=rnd(0,Math.PI*2), sp=rnd(2,8);
+    m.userData={v:new THREE.Vector3(Math.cos(a)*sp,rnd(3,8),Math.sin(a)*sp), r:new THREE.Vector3(rnd(-9,9),rnd(-9,9),rnd(-9,9)), life:rnd(1,1.8)};
+    world.add(m); particles.push(m);
+  }
+  const ring=new THREE.Mesh(new THREE.RingGeometry(.6,1,48), new THREE.MeshBasicMaterial({color:'#ff3b30',transparent:true,opacity:.8,side:THREE.DoubleSide}));
+  ring.rotation.x=-Math.PI/2; ring.position.copy(mid).setY(.08); ring.userData={ring:true,life:.9,max:.9}; world.add(ring); particles.push(ring);
+  [Y,W].forEach(a=>a.view.group.traverse(o=>{ if(o.isMesh && o.material.emissive && !o.material.userData.keep && o.material!==a.view.blink.L && o.material!==a.view.blink.R){ o.material.emissive.set('#ff2a1a'); o.material.emissiveIntensity=.0; a.flash=true; } }));
+}
+function stepParticles(dt){
+  particles=particles.filter(m=>{
+    const u=m.userData; u.life-=dt;
+    if(u.ring){ const k=1-u.life/u.max; m.scale.setScalar(1+k*7); m.material.opacity=Math.max(0,.8*(1-k)); }
+    else { u.v.y-=18*dt; m.position.addScaledVector(u.v,dt); if(m.position.y<.08){ m.position.y=.08; u.v.y*=-.35; u.v.x*=.7; u.v.z*=.7; }
+      m.rotation.x+=u.r.x*dt; m.rotation.y+=u.r.y*dt; m.rotation.z+=u.r.z*dt; if(u.life<.5) m.material.opacity=Math.max(0,u.life/.5); }
+    if(u.life<=0){ m.parent&&m.parent.remove(m); m.geometry.dispose(); m.material.dispose(); return false; }
+    return true; });
+}
+function driveStep(a,dt){ a.v=Math.min(12,a.v+7*dt); a.s=Math.min(a.path.len,a.s+a.v*dt); placeOnPath(a,a.s); }
+function validOrder(order, edges){
+  return order.every((k,idx)=>edges.filter(e=>e.y===k).every(e=>{ const p=order.indexOf(e.w); return p>=0 && p<idx; }));
+}
+
+function finish(timeout, gaveUp, crashed){
+  const scen=state.scen; state.phase='result';
+  const ok = !timeout && !gaveUp && !crashed && validOrder(state.order, scen.edges);
+  const st=state.stats[state.mode]; st.n++; if(ok){ st.ok++; st.streak++; } else st.streak=0; persist(); statsUI();
+  const v=$('verdict');
+  v.className='verdict '+(ok?'ok':'bad');
+  v.innerHTML = ok ? '<span class="badge">✓</span>Верно, все разъехались' : `<span class="badge">✕</span>${crashed?'Авария!':timeout?'Время вышло':gaveUp?'Правильный ответ':'Не так'}`;
+  $('rule').textContent = ruleLine(scen);
+  // stages
+  const byKey=k=>scen.agents.find(a=>a.key===k);
+  const sb=$('stages'); sb.innerHTML='';
+  scen.stages.forEach((grp,k)=>{
+    if(k) sb.insertAdjacentHTML('beforeend','<span class="arrow-sep">→</span>');
+    const names=grp.map(key=>{const a=byKey(key); return `<i style="--c:${a.css}"></i>${a.nom}`;}).join(', ');
+    sb.insertAdjacentHTML('beforeend',`<span class="stage"><b>${k+1}</b>${names}${grp.length>1?' <small style="color:var(--muted)">вместе</small>':''}</span>`);
+  });
+  const ul=$('why'); ul.innerHTML='';
+  if(crashed){ const c=state.crash; ul.insertAdjacentHTML('beforeend',`<li><b>${isYou(c.Y)?'Вы поехали':c.Y.nom+' поехала'} раньше, чем ${isYou(c.W)?'вы':c.W.nom.toLowerCase()}</b>, а ${isYou(c.Y)?'должны были':'должна была'} уступить. Отсюда ДТП.</li>`); }
+  explain(scen).forEach(t=>{ const li=document.createElement('li'); li.innerHTML=t; ul.appendChild(li); });
+  $('ask').hidden=true; $('res').hidden=false;
+  $('b-replay').textContent = ok ? 'Повторить проезд' : 'Показать правильный проезд';
+  if(timeout||gaveUp) startAnim();
+}
+
+function ruleLine(s){
+  const you=s.agents[0];
+  if(s.mode==='ring'){
+    if(s.ringMode==='yield') return 'Знаки 4.3 + 2.4: въезжающий на кольцо уступает тем, кто уже движется по кольцу.';
+    if(s.ringMode==='only') return 'Только знак 4.3, без 2.4: по п. 13.11¹ въезжающий всё равно уступает тем, кто движется по кольцу.';
+    return 'Вы въезжаете с главной (2.1 + 4.3): машины на кольце уступают вам. Въезжающие со знаком 2.4 уступают кольцу.';
+  }
+  const c=s.cfg, sg=s.signs[0]||[];
+  if(c.type==='equal') return `Равнозначный перекрёсток${sg.includes('1.6')?' (знак 1.6)':' без знаков'}: работает помеха справа (п. 13.11), а при повороте налево уступаете встречным, едущим прямо и направо (п. 13.12).`;
+  const stop = sg.includes('2.5') ? ' Знак STOP: сначала остановка у стоп-линии.' : '';
+  if(you.main) return c.type==='bent'
+    ? 'Вы на главной, но она меняет направление (табличка 8.13). Второстепенные уступают вам, а между машинами на главной действует помеха справа (п. 13.10).'
+    : 'Вы на главной дороге: машины со второстепенной уступают вам (п. 13.9). Между машинами на главной: помеха справа и правило поворота налево.';
+  return c.type==='bent'
+    ? `Вы на второстепенной, главная меняет направление (табличка 8.13). Уступаете всем на главной; с другой второстепенной: помеха справа (п. 13.10).${stop}`
+    : `Вы на второстепенной: уступаете всем, кто едет по главной (п. 13.9). Со встречной второстепенной разъезжаетесь по правилам равнозначных дорог.${stop}`;
+}
+function explain(s){
+  const byKey=k=>s.agents.find(a=>a.key===k);
+  const out=[];
+  const dat=a=>isYou(a)?'вам':a.dat;
+  s.edges.forEach(e=>{
+    const Y=byKey(e.y), W=byKey(e.w);
+    const who = isYou(W) ? 'вы' : 'она';
+    let t='';
+    if(e.why==='main') t=`<b>${yieldsTxt(Y)}</b> ${dat(W)}: ${who} на главной дороге. <small>п. 13.9</small>`;
+    if(e.why==='right') t=`<b>${yieldsTxt(Y)}</b> ${dat(W)}: ${who} справа, помеха справа. <small>${s.cfg.type==='bent'?'п. 13.10':'п. 13.11'}</small>`;
+    if(e.why==='left') t=`<b>${yieldsTxt(Y)}</b> ${dat(W)}: поворот налево, а ${who} ${isYou(W)?'едете':'едет'} навстречу ${W.man==='S'?'прямо':'направо'}. <small>п. 13.12</small>`;
+    if(e.why==='ring') t=`<b>${yieldsTxt(Y)}</b> ${dat(W)}: ${who} уже ${isYou(W)?'движетесь':'движется'} по кольцу. <small>п. 13.11¹</small>`;
+    if(e.why==='ringOnly') t=`<b>${yieldsTxt(Y)}</b> ${dat(W)}: ${who} на кольце, а знака 2.1 у въезда нет. <small>п. 13.11¹</small>`;
+    if(e.why==='ringMain') t=`<b>${yieldsTxt(Y)}</b> ${dat(W)}: ${who} ${isYou(W)?'въезжаете':'въезжает'} с главной дороги (знак 2.1). <small>п. 13.9</small>`;
+    out.push(t);
+  });
+  s.agents.forEach(a=>{
+    if(s.edges.some(e=>e.y===a.key||e.w===a.key)) return;
+    if(a.kind==='ring' && a.man==='exit') out.push(`<b>${a.nom}</b> с правым поворотником съезжает раньше, чем доедет до въезда, и никому не мешает.`);
+    else out.push(`<b>${isYou(a)?'Вы':a.nom}</b>: ${isYou(a)?'ваша траектория ни с кем не пересекается':'траектория ни с кем не пересекается'}, ${isYou(a)?'едете':'едет'} без помех.`);
+  });
+  return out;
+}
+
+function startAnim(){
+  const scen=state.scen;
+  state.crash=null; particles.forEach(m=>{ m.parent&&m.parent.remove(m); }); particles=[];
+  scen.agents.forEach(a=>{ a.s=0; a.v=a.kind==='ring'?7:0; a.released=false; a.started=false; a.view.group.rotation.set(0,0,0); placeOnPath(a,0);
+    if(a.flash) a.view.group.traverse(o=>{ if(o.isMesh && o.material.emissive && !o.material.userData.keep && o.material!==a.view.blink.L && o.material!==a.view.blink.R) o.material.emissiveIntensity=0; }); });
+  const delay={}; scen.stages.forEach((g,k)=>g.forEach(key=>delay[key]=0.5+k*2.3));
+  state.anim={t0:performance.now(), delay};
+}
+
+/* input */
+const ray=new THREE.Raycaster(), ptr=new THREE.Vector2(); let down=null;
+canvas.addEventListener('pointerdown',e=>{ down={x:e.clientX,y:e.clientY}; });
+canvas.addEventListener('pointerup',e=>{
+  if(!down || Math.hypot(e.clientX-down.x,e.clientY-down.y)>6) return; down=null;
+  const r=canvas.getBoundingClientRect(); ptr.set(((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1);
+  ray.setFromCamera(ptr,camera);
+  const hit=ray.intersectObjects(world?world.children:[],true).find(h=>h.object.userData.agent);
+  if(hit) pickAgent(hit.object.userData.agent);
+});
+addEventListener('keydown',e=>{
+  if(e.key==='Enter' || (e.key===' ' && state.phase==='result')){ if(state.phase==='result'){ e.preventDefault(); newScenario(); } }
+  const n=parseInt(e.key,10); if(n>=1 && state.scen && n<=state.scen.agents.length) pickAgent(state.scen.agents[n-1].key);
+});
+$('b-next').onclick=newScenario;
+$('b-skip').onclick=()=>{ if(state.phase==='ask') finish(false,true); };
+$('b-replay').onclick=startAnim;
+$('b-timer').onclick=()=>{ state.timer=TIMERS[(TIMERS.indexOf(state.timer)+1)%TIMERS.length]; persist(); toolsUI(); state.t0=performance.now(); };
+$('b-arrows').onclick=()=>{ state.arrows=!state.arrows; persist(); toolsUI(); state.scen.agents.forEach(drawLabel); };
+$('b-cam').onclick=()=>{ state.cam=state.cam==='driver'?'top':'driver'; toolsUI(); moveCam(); };
+function setMode(m){ if(state.mode===m) return; state.mode=m; persist(); toolsUI(); newScenario(); moveCam(); }
+$('m-cross').onclick=()=>setMode('cross'); $('m-ring').onclick=()=>setMode('ring');
+
+/* loop */
+function layout(){
+  const phone=PHONE.matches; document.body.classList.toggle('phone',phone);
+  const sg=$('signs'); if(phone && sg.parentElement!==$('dock')) $('dock').insertBefore(sg,$('dock').children[1]);
+  if(!phone && sg.parentElement!==$('mid')) $('mid').appendChild(sg);
+  if(phone){ const t=$('top').getBoundingClientRect().bottom+6, b=$('dock').getBoundingClientRect().top-6;
+    canvas.style.top=t+'px'; canvas.style.height=Math.max(120,b-t)+'px'; canvas.style.bottom='auto'; }
+  else { canvas.style.top='0'; canvas.style.height='100%'; }
+  resize();
+}
+function resize(){ const w=canvas.clientWidth||innerWidth, h=canvas.clientHeight||innerHeight; renderer.setSize(w,h,false); camera.aspect=w/h;
+  camera.fov = PHONE.matches ? 58 : 48; camera.updateProjectionMatrix(); }
+addEventListener('resize',layout);
+new ResizeObserver(layout).observe($('dock')); new ResizeObserver(layout).observe($('top'));
+PHONE.addEventListener('change',()=>{ toolsUI(); moveCam(); });
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(.05,(now-last)/1000); last=now;
+  const scen=state.scen;
+  // blinkers
+  const on=Math.floor(now/380)%2===0;
+  scen.agents.forEach(a=>{ const b=a.view.blink; b.L.emissiveIntensity = a.blinkSide==='L'&&on?2.2:0; b.R.emissiveIntensity = a.blinkSide==='R'&&on?2.2:0; });
+  // timer
+  const fill=$('t-fill');
+  if(state.phase==='ask'){
+    if(state.timer){
+      const left=Math.max(0,state.timer-(now-state.t0)/1000);
+      fill.className=left<4?'low':''; fill.style.transform=`scaleX(${left/state.timer})`;
+      $('clock').textContent=left.toFixed(1);
+      if(left<=0) finish(true);
+    } else { fill.className='off'; $('clock').textContent=''; }
+  } else fill.style.transform='scaleX(0)';
+  // drive-off animation
+  if(state.anim){
+    const t=Math.max(0,(now-state.anim.t0)/1000);
+    scen.agents.forEach(a=>{
+      if(t<state.anim.delay[a.key] || a.s>=a.path.len) return;
+      a.v=Math.min(12,a.v+7*dt); a.s=Math.min(a.path.len,a.s+a.v*dt); placeOnPath(a,a.s);
+      if(a.s>3) a.view.label.sprite.visible = a.s < a.path.len-50;
+    });
+  } else {
+    scen.agents.forEach(a=>{
+      a.view.label.sprite.visible = a.s < a.path.len-50;
+      if(!a.released || a.s>=a.path.len) return;
+      if(!a.started){ a.started = scen.edges.filter(e=>e.y===a.key).every(e=>byKey(e.w).s>=e.clearW); if(!a.started) return; }
+      driveStep(a,dt);
+    });
+  }
+  if(state.crash){ const c=state.crash, {Y,W}=c;
+    if(!c.hit){ const k=Math.min(1,Math.max(0,(now-c.t0)/1000/c.dur)), f=Math.pow(k,1.25);
+      Y.s=c.sY0+(c.tA-c.sY0)*f; W.s=c.sW0+(c.tB-c.sW0)*f; placeOnPath(Y,Y.s); placeOnPath(W,W.s); if(k>=1) impact(c); }
+    else { const tt=Math.max(0,(now-c.th)/1000), damp=Math.exp(-2.6*dt);
+      [Y,W].forEach(a=>{ const g=a.view.group; g.position.addScaledVector(a.vel,dt); a.vel.multiplyScalar(damp); g.rotation.y+=a.spin*dt; a.spin*=damp;
+        g.rotation.z=Math.sin(tt*14)*.12*Math.exp(-3*tt);
+        g.traverse(o=>{ if(o.isMesh && o.material.emissive && !o.material.userData.keep && o.material!==a.view.blink.L && o.material!==a.view.blink.R) o.material.emissiveIntensity=Math.max(0,.9-tt)*(Math.floor(tt*10)%2?1:.3); }); });
+      if(tt>1.5 && !c.done){ c.done=true; finish(false,false,true); } }
+  }
+  stepParticles(dt);
+  // camera
+  if(camAnim){ const k=Math.min(1,(now-camAnim.s)/900), e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+    camera.position.lerpVectors(camAnim.p0,camAnim.p,e); controls.target.lerpVectors(camAnim.t0,camAnim.t,e); if(k>=1) camAnim=null; }
+  controls.update();
+  const sh=state.crash&&state.crash.shake>0?state.crash.shake:0;
+  if(sh){ state.crash.shake-=dt; const o=new THREE.Vector3(rnd(-1,1),rnd(-1,1),rnd(-1,1)).multiplyScalar(sh*.6); camera.position.add(o); renderer.render(scene,camera); camera.position.sub(o); }
+  else renderer.render(scene,camera);
+  requestAnimationFrame(frame);
+}
+toolsUI(); newScenario(); layout(); moveCam(true);
+requestAnimationFrame(frame);
+window.__road={state, genIntersection, genRound, validOrder};
+</script>
+
+</body>
+</html>
