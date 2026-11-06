@@ -804,7 +804,7 @@ function applyTint(){
   document.body.classList.toggle('tint',state.black);
   renderer.toneMappingExposure = state.black ? .58 : 1.05;
   const bg = state.black ? '#3b4048' : '#e7ebe7'; scene.background.set(bg); scene.fog.color.set(bg);
-  const j=$('joke'); if(j){ j.hidden=!state.black; if(state.black) j.innerHTML='<b>Шуточный режим BMW</b> '+pick(JOKE_ASK); }
+  const j=$('joke'); if(j){ j.hidden=!state.black; if(state.black) j.innerHTML='<b>Шуточный режим BMW</b> Что ни выберешь, BMW всегда прав. Поворотники для лохов.'; }
 }
 const PHONE=matchMedia('(max-width:760px), (pointer:coarse) and (max-width:1100px)');
 const saved=store.get('road-trainer-v1',{});
@@ -885,7 +885,7 @@ function pickAgent(key){
   const scen=state.scen, a=byKey(key);
   const blocker = scen.edges.find(e=>e.y===key && !state.order.includes(e.w));
   state.order.push(key); scen.agents.forEach(drawLabel); chipsUI();
-  if(blocker){ if(isYou(a)&&state.black){ bully(a, byKey(blocker.w), blocker); return; } crash(a, byKey(blocker.w), blocker); return; }
+  if(blocker){ if(state.black){ bully(a, byKey(blocker.w), blocker); return; } crash(a, byKey(blocker.w), blocker); return; }
   a.released=true;
   if(state.order.length===scen.agents.length) finish(false);
 }
@@ -949,11 +949,12 @@ function validOrder(order, edges){
 
 function finish(timeout, gaveUp, crashed){
   const scen=state.scen; state.phase='result';
-  const ok = !timeout && !gaveUp && !crashed && validOrder(state.order, scen.edges);
-  const st=state.stats[state.mode]; st.n++; if(ok){ st.ok++; st.streak++; } else st.streak=0; persist(); statsUI();
+  const bmw = state.black && !gaveUp;
+  const ok = bmw || (!timeout && !gaveUp && !crashed && validOrder(state.order, scen.edges));
+  if(!state.black){ const st=state.stats[state.mode]; st.n++; if(ok){ st.ok++; st.streak++; } else st.streak=0; persist(); statsUI(); }
   const v=$('verdict');
   v.className='verdict '+(ok?'ok':'bad');
-  v.innerHTML = ok ? '<span class="badge">✓</span>Верно, все разъехались' : `<span class="badge">✕</span>${crashed==='bmw'?'BMW проехал вне очереди':crashed?'Авария!':timeout?'Время вышло':gaveUp?'Правильный ответ':'Не так'}`;
+  v.innerHTML = bmw ? '<span class="badge">✓</span>BMW всегда прав' : ok ? '<span class="badge">✓</span>Верно, все разъехались' : `<span class="badge">✕</span>${crashed==='bmw'?'BMW проехал вне очереди':crashed?'Авария!':timeout?'Время вышло':gaveUp?'Правильный ответ':'Не так'}`;
   $('rule').textContent = ruleLine(scen);
   // stages
   const byKey=k=>scen.agents.find(a=>a.key===k);
@@ -964,9 +965,9 @@ function finish(timeout, gaveUp, crashed){
     sb.insertAdjacentHTML('beforeend',`<span class="stage"><b>${k+1}</b>${names}${grp.length>1?' <small style="color:var(--muted)">вместе</small>':''}</span>`);
   });
   const ul=$('why'); ul.innerHTML='';
-  if(crashed==='bmw'){ const c=state.bully; ul.insertAdjacentHTML('beforeend',`<li><b>Шуточный режим:</b> BMW всегда прав, ${c.W.nom.toLowerCase()} затормозила и посигналила. Но экзаменатор не BMW: по ПДД вы должны были уступить ${c.W.dat}, на экзамене это ошибка.</li>`); }
+  if(bmw){ const c=state.bully; ul.insertAdjacentHTML('beforeend',`<li class="jk"><b>Шуточный режим, в зачёт не идёт.</b> ${c?`${isYou(c.Y)?'Вы':c.Y.nom} без очереди, ${c.W.nom.toLowerCase()} только посигналила. `:''}Поворотники для лохов. Ниже на всякий случай как было бы по ПДД:</li>`); }
   else if(crashed===true){ const c=state.crash; ul.insertAdjacentHTML('beforeend',`<li><b>${isYou(c.Y)?'Вы поехали':c.Y.nom+' поехала'} раньше, чем ${isYou(c.W)?'вы':c.W.nom.toLowerCase()}</b>, а ${isYou(c.Y)?'должны были':'должна была'} уступить. Отсюда ДТП.</li>`); }
-  if(state.black && crashed!=='bmw') ul.insertAdjacentHTML('afterbegin',`<li class="jk"><b>Шуточный режим:</b> ${pick(ok?JOKE_OK:JOKE_BAD)}</li>`);
+  if(false) ul.insertAdjacentHTML('afterbegin',`<li class="jk"><b>Шуточный режим:</b> ${pick(ok?JOKE_OK:JOKE_BAD)}</li>`);
   explain(scen).forEach(t=>{ const li=document.createElement('li'); li.innerHTML=t; ul.appendChild(li); });
   $('ask').hidden=true; $('res').hidden=false;
   $('b-replay').textContent = ok ? 'Повторить проезд' : 'Показать правильный проезд';
