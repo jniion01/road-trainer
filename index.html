@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 </head>
 <body>
 <title>Тренажёр перекрёстков</title>
@@ -158,6 +158,14 @@ body.phone #dock #signs{flex:none}
 body.phone .pane{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y}
 body.phone .chip{transition:none}
 body.phone .chip:active{transform:none}
+.msel{display:none;font:inherit;font-size:13px;font-weight:500;color:var(--ink);padding:6px 24px 6px 9px;border-radius:9px;border:1px solid var(--line);background:var(--paper-solid) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23626c78' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right 8px center;-webkit-appearance:none;appearance:none;min-width:0}
+body.phone .seg{display:none}
+body.phone .msel{display:block;flex:0 1 auto}
+body.phone.land #dock{position:fixed;right:max(8px,env(safe-area-inset-right,0px));top:var(--dockT,60px);bottom:calc(8px + env(safe-area-inset-bottom,0px));width:var(--dockW,42vw);height:auto!important}
+body.phone.land #dock #sign-imgs img.big{width:48px;height:48px}
+body.phone.land #dock #sign-imgs img.plate{width:38px;height:38px}
+body.phone.land #top{align-self:stretch}
+@media (max-width:1180px){ body:not(.phone) .brand b{display:none} }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -172,7 +180,12 @@ body.phone .chip:active{transform:none}
     <nav class="seg" aria-label="Режим">
       <button id="m-cross" class="on"><span class="long">Перекрёсток</span><span class="short">Перекр.</span></button>
       <button id="m-ring">Кольцо</button>
+      <button id="m-reg">Регулировщик</button>
+      <button id="m-uturn">Разворот</button>
     </nav>
+    <select id="m-sel" class="msel" aria-label="Режим">
+      <option value="cross">Перекрёсток</option><option value="ring">Кольцо</option><option value="reg">Регулировщик</option><option value="uturn">Разворот</option>
+    </select>
     <div class="spacer"></div>
     <div class="stat"><span id="s-acc">0/0</span><small>верно</small></div>
     <div class="stat" id="st-streak"><span id="s-streak">0</span><small>серия</small></div>
@@ -201,9 +214,10 @@ body.phone .chip:active{transform:none}
       <p class="joke" id="joke" hidden></p>
       <div id="chips"></div>
       <div class="row">
-        <p class="hint">Кто может ехать одновременно, можно нажимать в любом порядке.</p>
+        <p class="hint" id="hint">Кто может ехать одновременно, можно нажимать в любом порядке.</p>
         <div class="spacer"></div>
         <button class="ghost" id="b-skip">Показать ответ</button>
+        <button class="primary" id="b-done" hidden>Готово</button>
       </div>
     </div>
     <div id="res" class="pane" hidden>
@@ -256,6 +270,7 @@ function laneIn(i,dist){ const o=OUT[i], d=[-o[0],-o[1]], r=[-d[1],d[0]]; return
 function laneOut(j,dist){ const o=OUT[j], r=[-o[1],o[0]]; return v3(o[0]*dist+r[0]*LANE, o[1]*dist+r[1]*LANE); }
 function ringPt(deg,r=RC){ const a=deg*Math.PI/180; return v3(Math.cos(a)*r, -Math.sin(a)*r); }
 function linePts(a,b,step=1.2){ const n=Math.max(1,Math.ceil(a.distanceTo(b)/step)); const out=[]; for(let k=0;k<=n;k++) out.push(a.clone().lerp(b,k/n)); return out; }
+function arcR(a0,a1,r0,r1){ const d=a1-a0; const n=Math.max(2,Math.ceil(Math.abs(d)/4)); const out=[]; for(let k=0;k<=n;k++){ const u=k/n, e=u*u*(3-2*u); out.push(ringPt(a0+d*u, r0+(r1-r0)*e)); } return out; }
 function arcPts(a0,a1){ const d=mod(a1-a0); const n=Math.max(2,Math.ceil(d/5)); const out=[]; for(let k=0;k<=n;k++) out.push(ringPt(a0+d*k/n)); return out; }
 function mkCurve(pts){ const clean=[]; for(const p of pts){ if(!clean.length || clean[clean.length-1].distanceTo(p)>0.3) clean.push(p); } const c=new THREE.CatmullRomCurve3(clean,false,'centripetal'); c.len=c.getLength(); return c; }
 
@@ -266,6 +281,8 @@ const PALETTE = [
   {key:'blue',   nom:'Синяя',   dat:'синей',   css:'#3e63dd', hex:0x3e63dd},
   {key:'green',  nom:'Зелёная', dat:'зелёной', css:'#2f9e6a', hex:0x2f9e6a},
   {key:'yellow', nom:'Жёлтая',  dat:'жёлтой',  css:'#f2c230', hex:0xf2c230},
+  {key:'orange', nom:'Оранжевая', dat:'оранжевой', css:'#f07a2a', hex:0xf07a2a},
+  {key:'purple', nom:'Фиолетовая', dat:'фиолетовой', css:'#8e4ec6', hex:0x8e4ec6},
 ];
 const isYou = a => a.key==='you';
 const yieldsTxt = a => isYou(a) ? 'Вы уступаете' : `${a.nom} уступает`;
@@ -304,7 +321,7 @@ function genIntersection(){
         if(cfg.type==='bent') signs[a].push('8.13');
       }
     }
-    const pal = shuffle(PALETTE);
+    const pal = shuffle(PALETTE.slice(0,4));
     const nOthers = Math.min(arms.length-1, weighted([{n:1,w:1},{n:2,w:3},{n:3,w:2.4}]).n);
     const otherArms = shuffle(arms.filter(a=>a!==0)).slice(0,nOthers);
     const chooseExit = arm => { const ex=arms.filter(x=>x!==arm).map(x=>({x, w:({1:1,2:1.3,3:1.1})[mod(x-arm,4)]})); return weighted(ex).x; };
@@ -343,48 +360,114 @@ function topo(agents, edges){
 
 /* ───────────── PDD logic: roundabout ───────────── */
 const ENTRY = i => ANG[i]+18, EXITA = j => ANG[j]-18;
+const RL=[12.0,8.5];                         // lane radii on the ring: 0 outer, 1 inner
+const laneFor = (arm,exit) => ({1:0,2:0,3:1,0:1})[mod(exit-arm,4)];
+const nextExitAt = ang => [0,1,2,3].slice().sort((p,q)=>mod(EXITA(p)-ang)-mod(EXITA(q)-ang))[0];
 function genRound(){
-  for(let tries=0; tries<600; tries++){
+  for(let tries=0; tries<900; tries++){
     const mode = weighted([{m:'yield',w:3},{m:'only',w:1.3},{m:'main',w:1.2}]).m;
     const arms=[0,1,2,3];
     const signs={};
     arms.forEach(a=>{ signs[a] = mode==='yield' ? ['2.4','4.3'] : mode==='only' ? ['4.3'] : (a%2===0 ? ['2.1','4.3'] : ['2.4','4.3']); });
     const mainArm = a => mode==='main' && a%2===0;
     const pal=shuffle(PALETTE); let pi=0;
-    const you = {...YOU, kind:'enter', arm:0, exit: weighted([{x:1,w:1},{x:2,w:1.4},{x:3,w:1.2},{x:0,w:.3}]).x};
+    const you = {...YOU, kind:'enter', arm:0, exit: weighted([{x:1,w:1},{x:2,w:1.3},{x:3,w:1.3},{x:0,w:.35}]).x};
     const agents=[you];
-    const ringN = weighted([{n:1,w:2},{n:2,w:1.6}]).n;
-    const ranges = shuffle([[172,240],[62,140]]);
-    const ringRanges = ringN===1 ? [[172,240]] : [[172,240], ranges.find(r=>r[0]!==172)];
-    for(const rg of ringRanges){
-      const a=rnd(rg[0],rg[1]);
-      const opts=arms.filter(j=>{ const d=mod(EXITA(j)-a); return d>9 && d<300; });
-      const ex=pick(opts);
-      agents.push({...pal[pi++], kind:'ring', ang:a, exit:ex});
-    }
+    const ring=[];
+    const free=(ang,lane)=>ring.every(r=>{ const d=Math.min(mod(r.ang-ang),mod(ang-r.ang)); return r.lane===lane ? d>=28 : d>=4; });
+    // lane-change pair: inner car about to exit, outer car slightly behind it (п. 8.4)
     if(Math.random()<0.5){
-      const arm=pick([1,2,3]);
-      agents.push({...pal[pi++], kind:'enter', arm, exit:pick(arms.filter(x=>x!==arm))});
-    }
-    agents.forEach(A=>{
-      if(A.kind==='enter'){ A.man = manOf(A.arm,A.exit); A.main = mainArm(A.arm); }
-      else { // next exit ahead → right blinker
-        const next = arms.slice().sort((p,q)=>mod(EXITA(p)-A.ang)-mod(EXITA(q)-A.ang))[0];
-        A.man = next===A.exit ? 'exit' : 'ring'; A.nextExit=next;
+      const a=rnd(140,230), nx=nextExitAt(a), D=mod(EXITA(nx)-a);
+      if(D>=34 && D<=85){
+        const b=a-rnd(9,24);
+        const opts=arms.filter(e=>{ const dY=mod(EXITA(e)-b); return dY>=mod(EXITA(nx)-b) && dY<330; });
+        if(opts.length){ ring.push({kind:'ring', lane:1, ang:a, exit:nx}); ring.push({kind:'ring', lane:0, ang:b, exit:pick(opts)}); }
       }
+    }
+    const nRing = ring.length + weighted([{n:0,w:.6},{n:1,w:1.6},{n:2,w:1.2}]).n;
+    for(let k=0; k<40 && ring.length<Math.min(nRing,3); k++){
+      const ang = Math.random()<.7 ? rnd(150,262) : rnd(20,150);
+      let lane = Math.random()<.45 ? 1 : 0;
+      const opts=arms.filter(e=>{ const d=mod(EXITA(e)-ang); return d>12 && d<330; }); if(!opts.length) continue;
+      const ex=pick(opts), D=mod(EXITA(ex)-ang), nx=nextExitAt(ang);
+      if(lane===1 && (nx===ex ? D<34 : D<60)) lane=0;
+      if(!free(ang,lane)) continue;
+      ring.push({kind:'ring', lane, ang, exit:ex});
+    }
+    ring.forEach(r=>agents.push({...pal[pi++], ...r}));
+    const nEnter = weighted([{n:0,w:1},{n:1,w:1.5},{n:2,w:.7}]).n;
+    shuffle([1,2,3]).slice(0,nEnter).forEach(arm=>{ if(pi<pal.length) agents.push({...pal[pi++], kind:'enter', arm, exit:pick(arms.filter(x=>x!==arm))}); });
+    agents.forEach(A=>{
+      if(A.kind==='enter'){ A.man = manOf(A.arm,A.exit); A.main = mainArm(A.arm); A.lane = laneFor(A.arm,A.exit); }
+      else { const next=nextExitAt(A.ang); A.man = next===A.exit ? 'exit' : 'ring'; A.nextExit=next; }
     });
     const edges=[];
-    for(const E of agents.filter(a=>a.kind==='enter')) for(const R of agents.filter(a=>a.kind==='ring')){
+    const enters=agents.filter(a=>a.kind==='enter'), rings=agents.filter(a=>a.kind==='ring');
+    for(const E of enters) for(const R of rings){
       const dE=mod(ENTRY(E.arm)-R.ang), dX=mod(EXITA(R.exit)-R.ang);
-      if(!(dE<dX && dE<=140)) continue;
+      if(!(dE<dX && dE<=150)) continue;
       if(E.main) edges.push({y:R.key, w:E.key, why:'ringMain'});
       else edges.push({y:E.key, w:R.key, why: mode==='only'?'ringOnly':'ring'});
     }
-    const exitingBefore = agents.filter(R=>R.kind==='ring' && R.man==='exit' && R.exit===0);
+    for(const X of rings) for(const Y of rings){
+      if(X===Y || X.lane!==1 || X.man!=='exit' || Y.lane!==0) continue;
+      const behind=mod(X.ang-Y.ang);
+      if(behind>40) continue;
+      if(mod(EXITA(X.exit)-Y.ang) > mod(EXITA(Y.exit)-Y.ang)) continue;
+      edges.push({y:X.key, w:Y.key, why:'lane'});
+    }
+    const exitingBefore = rings.filter(R=>R.man==='exit' && R.exit===0);
     if(!edges.length && !exitingBefore.length) continue;
     if(!edges.some(e=>e.y==='you'||e.w==='you') && !exitingBefore.length && Math.random()<0.85) continue;
     const stages=topo(agents,edges); if(!stages) continue;
     return {mode:'ring', arms, ringMode:mode, signs, agents, edges, stages};
+  }
+}
+
+/* ───────────── PDD logic: traffic controller (п. 6.10) ───────────── */
+const SIDE_NAME={0:'со стороны груди',1:'со стороны левого бока',2:'со стороны спины',3:'со стороны правого бока'};
+function regAllowed(gesture, rel, man){
+  if(gesture==='up') return false;
+  if(gesture==='side'||gesture==='down') return (rel===1||rel===3) && (man==='S'||man==='R');
+  if(rel===1) return true;            // right arm forward: from the left side, any direction
+  if(rel===0) return man==='R';       // from the chest: right turn only
+  return false;
+}
+function genReg(){
+  for(let t=0;t<400;t++){
+    const face=Math.floor(Math.random()*4);
+    const gesture=weighted([{g:'side',w:1.2},{g:'down',w:.8},{g:'fwd',w:1.8},{g:'up',w:.45}]).g;
+    const arms=[0,1,2,3], pal=shuffle(PALETTE);
+    const others=shuffle([1,2,3]).slice(0, weighted([{n:2,w:1.4},{n:3,w:1.6}]).n);
+    const chooseExit = arm => weighted(arms.filter(x=>x!==arm).map(x=>({x,w:({1:1,2:1.2,3:1.25})[mod(x-arm,4)]})).concat([{x:arm,w:.35}])).x;
+    const agents=[{...YOU, arm:0, exit:chooseExit(0)}, ...others.map((arm,k)=>({...pal[k], arm, exit:chooseExit(arm)}))];
+    agents.forEach(a=>{ a.kind='car'; a.man=manOf(a.arm,a.exit); a.rel=mod(a.arm-face,4); a.ok=regAllowed(gesture,a.rel,a.man); });
+    const okA=agents.filter(a=>a.ok);
+    if(new Set(okA.map(a=>a.exit)).size<okA.length) continue;
+    if(gesture!=='up' && !okA.length && Math.random()<.75) continue;
+    if(okA.length===agents.length && Math.random()<.7) continue;
+    return {mode:'reg', arms, cfg:{type:'equal',main:[]}, signs:{}, face, gesture, agents, edges:[], stages:[okA.map(a=>a.key)]};
+  }
+}
+
+/* ───────────── PDD logic: U-turn trajectories ───────────── */
+const TRAJ_META=[{id:'A',L:'А',css:'#1f56c4'},{id:'B',L:'Б',css:'#2f9e6a'},{id:'V',L:'В',css:'#e07b00'},{id:'G',L:'Г',css:'#b03fb5'}];
+const UT_START=26;
+function uCurve(zStart, zTurn, depth){
+  const p0=v3(LANE,zTurn), p3=v3(-LANE,zTurn), c1=v3(LANE,zTurn-depth), c2=v3(-LANE,zTurn-depth);
+  return mkCurve([...linePts(v3(LANE,zStart),p0,1), ...new THREE.CubicBezierCurve3(p0,c1,c2,p3).getPoints(24), ...linePts(p3,v3(-LANE,90),3)]);
+}
+function genUturn(){
+  for(let t=0;t<100;t++){
+    const sign=weighted([{s:null,w:1.3},{s:'3.19',w:1.1},{s:'4.1.1',w:.6},{s:'3.18.2',w:.9}]).s;
+    const solid0=Math.random()<.5, solid2=Math.random()<.55;
+    const atX = sign!=='3.19' && sign!=='4.1.1';
+    const ok={A:atX, B:atX, V:!solid0, G:!solid2};
+    if(!Object.values(ok).some(Boolean)) continue;
+    const curves={A:uCurve(UT_START,HALF,4.1), B:uCurve(UT_START,HALF,8.6), V:uCurve(UT_START,17,5.8), G:uCurve(UT_START,-17,4.4)};
+    const traj=TRAJ_META.map(m=>({...m, ok:ok[m.id], curve:curves[m.id]}));
+    const agents=[{...YOU, arm:0, exit:0, kind:'car', man:'U'}];
+    return {mode:'uturn', arms:[0,1,2,3], cfg:{type:'equal',main:[]}, signs:{0:sign?[sign]:[]}, sign, solid:{0:solid0?22:0, 2:solid2?22:0, 1:10, 3:10}, traj, agents, edges:[], stages:[['you']]};
   }
 }
 
@@ -440,6 +523,19 @@ function signCanvas(code, opt={}){
       }
       break;
     }
+    case '3.19': case '3.18.2': {
+      g.beginPath(); g.arc(128,128,122,0,Math.PI*2); g.fillStyle=back?GREY:'#fff'; g.fill(); if(back) break;
+      g.beginPath(); g.arc(128,128,103,0,Math.PI*2); g.lineWidth=28; g.strokeStyle=RED; g.stroke();
+      arrowIcon(g, code==='3.19'?'U':'L', 128,134,140,'#111');
+      g.beginPath(); g.moveTo(128-64,128-64); g.lineTo(128+64,128+64); g.lineWidth=20; g.lineCap='butt'; g.strokeStyle=RED; g.stroke();
+      break;
+    }
+    case '4.1.1': {
+      g.beginPath(); g.arc(128,128,122,0,Math.PI*2); g.fillStyle=back?GREY:'#fff'; g.fill(); if(back) break;
+      g.beginPath(); g.arc(128,128,114,0,Math.PI*2); g.fillStyle=BLUE; g.fill();
+      arrowIcon(g,'S',128,138,170,'#fff');
+      break;
+    }
     case '8.13': {
       rr(g,12,12,232,232,10); g.fillStyle=back?GREY:'#fff'; g.fill(); if(back) break;
       g.lineWidth=5; g.strokeStyle='#222'; g.stroke();
@@ -466,7 +562,7 @@ const SIGN_NAMES = {
   '2.1':'2.1 «Главная дорога»','2.4':'2.4 «Уступите дорогу»','2.5':'2.5 «Движение без остановки запрещено»',
   '1.6':'1.6 «Пересечение равнозначных дорог»','2.3.1':'2.3.1 «Пересечение со второстепенной дорогой»',
   '2.3.2':'2.3.2 «Примыкание второстепенной дороги справа»','2.3.3':'2.3.3 «Примыкание второстепенной дороги слева»',
-  '4.3':'4.3 «Круговое движение»','8.13':'табличка 8.13 «Направление главной дороги»'
+  '4.3':'4.3 «Круговое движение»','3.19':'3.19 «Разворот запрещён»','3.18.2':'3.18.2 «Поворот налево запрещён»','4.1.1':'4.1.1 «Движение прямо»','8.13':'табличка 8.13 «Направление главной дороги»'
 };
 
 /* ───────────── maneuver icons ───────────── */
@@ -561,8 +657,8 @@ function buildArm(i, start, signs, scen, stopKind, signDist){
   // edge lines
   g.add(flat(.14, L, M.mark, HALF-.25, start+L/2), flat(.14, L, M.mark, -(HALF-.25), start+L/2));
   // centre line: solid near junction, dashed beyond
-  const solidEnd=start+10;
-  g.add(flat(.15, solidEnd-start-1, M.mark, 0, start+1+(solidEnd-start-1)/2));
+  const sl=(scen.solid&&scen.solid[i]!=null)?scen.solid[i]:10, solidEnd=start+sl;
+  if(sl>1.5) g.add(flat(.15, solidEnd-start-1, M.mark, 0, start+1+(solidEnd-start-1)/2));
   for(let z=solidEnd+1; z<start+L; z+=6) g.add(flat(.14, 3, M.mark, 0, z+1.5));
   // stop / yield line on incoming half
   const zl=start+0.9;
@@ -610,6 +706,16 @@ function buildCrossWorld(scen){
     const kind = sg.includes('2.5')?'stop':sg.includes('2.4')?'yield':'none';
     w.add(buildArm(i, HALF, sg, scen, kind, HALF+1.1));
   });
+  if(scen.mode==='reg') w.add(makeOfficer(scen));
+  if(scen.mode==='uturn') scen.traj.forEach((t,k)=>{
+    const [s0,s1,uPk]=trajRange(t);
+    const r=ribbon(t.curve, s0, s1, t.css, .075+k*.006, .55);
+    r.traverse(o=>{ if(o.isMesh) o.userData.agent=t.id; }); t.rib=r; w.add(r);
+    const lc=document.createElement('canvas'); lc.width=lc.height=128; const tex=new THREE.CanvasTexture(lc); tex.colorSpace=THREE.SRGBColorSpace;
+    const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthTest:false,transparent:true})); const ls=PHONE.matches?1.6:1.15;
+    sp.scale.set(2*ls,2*ls,1); const pk=t.curve.getPointAt(uPk); sp.position.set(pk.x,2.3,pk.z-(t.id==='A'?0:.6)); sp.renderOrder=11; sp.userData.agent=t.id;
+    t.label={canvas:lc,tex,sprite:sp}; drawTraj(t); w.add(sp);
+  });
   return w;
 }
 function buildRingWorld(scen){
@@ -618,6 +724,7 @@ function buildRingWorld(scen){
   const isl=new THREE.Mesh(new THREE.CylinderGeometry(R_IN,R_IN,.3,64), M.island); isl.position.y=.15; isl.receiveShadow=true; w.add(isl);
   const curb=new THREE.Mesh(new THREE.TorusGeometry(R_IN,.12,6,96), M.curb); curb.rotation.x=Math.PI/2; curb.position.y=.2; w.add(curb);
   const lineIn=new THREE.Mesh(new THREE.RingGeometry(R_IN+.35,R_IN+.5,96), M.mark); lineIn.rotation.x=-Math.PI/2; lineIn.position.y=.04; w.add(lineIn);
+  for(let k=0;k<40;k++){ const d=new THREE.Mesh(new THREE.RingGeometry(RC-.08,RC+.08,4,1,(k*9)*Math.PI/180,4.5*Math.PI/180),M.mark); d.rotation.x=-Math.PI/2; d.position.y=.04; w.add(d); }
   w.add(tree(0,0,1.2));
   const t2=tree(2.6,-1.5,.8), t3=tree(-2.4,1.8,.7); w.add(t2,t3);
   scen.arms.forEach(i=>{
@@ -735,7 +842,7 @@ function makeCar(agent){
 }
 function drawLabel(a){
   const {canvas:c, tex}=a.view.label; const g=c.getContext('2d'); g.clearRect(0,0,256,128);
-  const idx=state.order.indexOf(a.key); const num=idx>=0?idx+1:null;
+  const idx=state.order.indexOf(a.key); const num = state.scen.mode==='reg' ? (state.sel.has(a.key)?'✓':null) : idx>=0?idx+1:null;
   const arrows=false;
   const w=92, x0=128-w/2;
   g.shadowColor='rgba(0,0,0,.25)'; g.shadowBlur=10; g.shadowOffsetY=3;
@@ -748,15 +855,11 @@ function drawLabel(a){
   tex.needsUpdate=true;
 }
 
-function groundArrow(a, scen){
-  const c=a.path, L=c.len, ring=scen.mode==='ring';
-  const rin=ring?R_OUT-1:HALF+.5, rout=ring?R_OUT+3.2:HALF+3.2;
-  const s0=Math.min(L,a.s+2.7); let inside=false, s1=Math.min(L,s0+12);
-  for(let s=s0; s<L; s+=.25){ const p=c.getPointAt(s/L); const r=Math.hypot(p.x,p.z); if(r<rin) inside=true; if(inside && r>rout){ s1=s; break; } }
-  const W=.5, HW=1.25, HL=1.5, pos=[], idx=[];
-  const pt=s=>c.getPointAt(Math.min(1,s/L)), tg=s=>c.getTangentAt(Math.min(1,s/L));
+function ribbon(c, s0, s1, col, y, op=.92){
+  const L=c.len, W=.5, HW=1.25, HL=1.5, pos=[], idx=[];
+  const pt=s=>c.getPointAt(Math.min(1,Math.max(0,s/L))), tg=s=>c.getTangentAt(Math.min(1,Math.max(0,s/L)));
   const shaftEnd=s1-HL; let n=0;
-  for(let s=s0; s<=shaftEnd+1e-6; s=Math.min(shaftEnd, s+.35)){
+  for(let s=s0; s<=shaftEnd+1e-6; s=Math.min(shaftEnd, s+.3)){
     const p=pt(s), t=tg(s), nx=-t.z, nz=t.x;
     pos.push(p.x+nx*W/2,0,p.z+nz*W/2, p.x-nx*W/2,0,p.z-nz*W/2);
     if(n>0){ const b=(n-1)*2; idx.push(b,b+1,b+2, b+1,b+3,b+2); } n++;
@@ -766,29 +869,120 @@ function groundArrow(a, scen){
   pos.push(p.x+nx*HW/2,0,p.z+nz*HW/2, p.x-nx*HW/2,0,p.z-nz*HW/2, tip.x,0,tip.z);
   idx.push(b,b+1,b+2);
   const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setIndex(idx);
-  const col = isYou(a) ? '#ffffff' : a.css;
-  const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.92,side:THREE.DoubleSide,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,toneMapped:false}));
-  m.position.y=.07+(scen.agents.indexOf(a))*.004; m.renderOrder=2;
-  // dark outline underneath for contrast
+  const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:op,side:THREE.DoubleSide,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,toneMapped:false}));
+  m.position.y=y; m.renderOrder=2;
   const o=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:'#11151a',transparent:true,opacity:.35,side:THREE.DoubleSide,depthWrite:false}));
-  o.scale.set(1,1,1); o.position.y=.055; o.position.x=.0; const grp=new THREE.Group(); grp.add(o,m); return grp;
+  o.position.y=.055; const grp=new THREE.Group(); grp.add(o,m); grp.userData.main=m; return grp;
+}
+function groundArrow(a, scen){
+  if(scen.mode==='uturn') return new THREE.Group();
+  const c=a.path, L=c.len, ring=scen.mode==='ring';
+  const rin=ring?R_OUT-1:HALF+.5, rout=ring?R_OUT+3.2:HALF+3.2;
+  const s0=Math.min(L,a.s+2.7); let inside=false, s1=Math.min(L,s0+12);
+  for(let s=s0; s<L; s+=.25){ const p=c.getPointAt(s/L); const r=Math.hypot(p.x,p.z); if(r<rin) inside=true; if(inside && r>rout){ s1=s; break; } }
+  return ribbon(c, s0, s1, isYou(a)?'#ffffff':a.css, .07+(scen.agents.indexOf(a))*.004);
+}
+function trajRange(t){
+  const c=t.curve, L=c.len, z0={A:HALF+2.2, B:HALF+2.2, V:19.6, G:-4.2}[t.id];
+  let s0=0, s1=L, uPk=0, zmin=1e9, past=false;
+  for(let s=0; s<L; s+=.2){ const p=c.getPointAt(s/L);
+    if(!s0 && p.x>0 && p.z<=z0) s0=s;
+    if(p.z<zmin){ zmin=p.z; uPk=s/L; }
+    if(p.x<0 && p.z<z0-1) past=true;
+    if(past && p.x<0 && p.z>=z0){ s1=s; break; } }
+  return [s0,s1,uPk];
+}
+function drawTraj(t){
+  const {canvas:c,tex}=t.label, g=c.getContext('2d'); g.clearRect(0,0,128,128);
+  const sel=state.sel.has(t.id), res=state.phase==='result';
+  g.shadowColor='rgba(0,0,0,.3)'; g.shadowBlur=8; g.shadowOffsetY=2;
+  g.beginPath(); g.arc(64,64,44,0,Math.PI*2); g.fillStyle=sel?'#1b2129':'#fff'; g.fill(); g.shadowColor='transparent';
+  g.lineWidth=8; g.strokeStyle=t.css; g.stroke();
+  g.fillStyle=sel?'#fff':t.css; g.font='700 50px "Golos Text", Arial, sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText(t.L,64,68);
+  if(res){ g.beginPath(); g.arc(100,26,20,0,Math.PI*2); g.fillStyle=t.ok?'#1d8656':'#cf3b3b'; g.fill(); g.fillStyle='#fff'; g.font='700 24px "Golos Text", Arial, sans-serif'; g.fillText(t.ok?'✓':'✕',100,28); }
+  tex.needsUpdate=true;
+}
+function makeOfficer(scen){
+  // Chest faces local +z, figure's right hand is local -x. Bigger than life so the gesture reads from far away.
+  const g=new THREE.Group();
+  const S=(c,o={})=>new THREE.MeshStandardMaterial({color:c,roughness:.7,...o});
+  const uni=S('#33414f'), vest=S('#d4f53c',{emissive:'#5f7a00',emissiveIntensity:.3}), white=S('#f6f6f2',{roughness:.4}), skin=S('#e3b590'), dark=S('#15191e'), refl=S('#e9eef2',{emissive:'#ffffff',emissiveIntensity:.35});
+  const add=(geo,mat,x,y,z,parent=g)=>{ const m=new THREE.Mesh(geo,mat); m.position.set(x,y,z); m.castShadow=true; parent.add(m); return m; };
+  const disc=add(new THREE.CylinderGeometry(.9,.9,.08,32), white, 0,.04,0); disc.receiveShadow=true;
+  [-1,1].forEach(sx=>{ add(new THREE.BoxGeometry(.24,.92,.28),uni,sx*.15,.5,0); add(new THREE.BoxGeometry(.26,.12,.38),dark,sx*.15,.1,.05); });
+  add(new THREE.BoxGeometry(.66,.78,.36),uni,0,1.32,0);
+  add(new THREE.BoxGeometry(.7,.58,.4),vest,0,1.36,0);
+  [1.22,1.46].forEach(y=>add(new THREE.BoxGeometry(.71,.06,.02),refl,0,y,.205));       // reflective stripes: front only
+  add(new THREE.BoxGeometry(.14,.16,.02),white,.17,1.58,.215);                          // badge on chest
+  add(new THREE.BoxGeometry(.18,.16,.2),skin,0,1.78,0);
+  const head=add(new THREE.SphereGeometry(.2,20,14),skin,0,1.98,0);
+  [-1,1].forEach(sx=>add(new THREE.SphereGeometry(.03,8,6),dark,sx*.075,2.02,.18));
+  add(new THREE.BoxGeometry(.05,.07,.06),skin,0,1.96,.21);
+  add(new THREE.BoxGeometry(.12,.025,.02),S('#9b4a3a'),0,1.89,.19);
+  add(new THREE.CylinderGeometry(.24,.21,.12,24),white,0,2.17,0);
+  add(new THREE.BoxGeometry(.34,.035,.2),dark,0,2.1,.2);
+  add(new THREE.CylinderGeometry(.215,.215,.05,24),S('#c62828'),0,2.12,0);
+  const mkArm=(sx, pose, baton)=>{
+    const piv=new THREE.Group(); piv.position.set(sx*.42,1.62,0); g.add(piv);
+    add(new THREE.CylinderGeometry(.085,.075,.72,10), vest, 0,-.36,0, piv);
+    add(new THREE.SphereGeometry(.08,10,8), skin, 0,-.76,0, piv);
+    if(baton){ for(let k=0;k<5;k++) add(new THREE.CylinderGeometry(.04,.04,.1,10), k%2?dark:white, 0,-.86-k*.1,0, piv); }
+    // arm hangs along -y; sx=-1 is the figure's right side
+    if(pose==='side') piv.rotation.z = sx*Math.PI/2;
+    if(pose==='fwd') piv.rotation.x = -Math.PI/2;
+    if(pose==='up') piv.rotation.z = Math.PI;
+    if(pose==='down') piv.rotation.z = sx*.08;
+  };
+  const gs=scen.gesture;
+  mkArm(-1, gs==='down'?'down':gs, true);
+  mkArm( 1, gs==='side'?'side':'down', false);
+  g.scale.setScalar(1.45);
+  g.rotation.y=Math.atan2(OUT[scen.face][0],OUT[scen.face][1]);
+  g.traverse(o=>{ if(o.isMesh) o.castShadow=true; });
+  return g;
 }
 function pathFor(a, scen){
-  if(scen.mode==='cross'){
+  if(scen.mode==='uturn') return scen.traj[0].curve;
+  if(scen.mode==='cross'||scen.mode==='reg'){
     const i=a.arm, j=a.exit;
     const pe=laneIn(i,HALF), px=laneOut(j,HALF);
     let mid;
     if(a.man==='S') mid=linePts(pe,px,1);
+    else if(a.man==='U'){ const o=OUT[i], d=[-o[0],-o[1]], c1=pe.clone().add(v3(d[0]*4.6,d[1]*4.6)), c2=px.clone().add(v3(d[0]*4.6,d[1]*4.6)); mid=new THREE.CubicBezierCurve3(pe,c1,c2,px).getPoints(20); }
     else { const d=[-OUT[i][0],-OUT[i][1]]; const ctrl= d[0]===0 ? v3(pe.x,px.z) : v3(px.x,pe.z);
       mid=new THREE.QuadraticBezierCurve3(pe,ctrl,px).getPoints(14); }
     return mkCurve([...linePts(laneIn(i,WAIT_X),pe), ...mid, ...linePts(px,laneOut(j,90),3)]);
   }
+  const R0=RL[0], R1=RL[1], out=j=>linePts(laneOut(j,R_OUT+1.6),laneOut(j,90),3);
   if(a.kind==='enter'){
-    const i=a.arm, j=a.exit; let e0=ENTRY(i), e1=EXITA(j); if(i===j) e1=e0+mod(EXITA(j)-e0);
-    return mkCurve([...linePts(laneIn(i,WAIT_R),laneIn(i,R_OUT+1.6)), ...arcPts(e0,e1), ...linePts(laneOut(j,R_OUT+1.6),laneOut(j,90),3)]);
+    const i=a.arm, j=a.exit, e0=ENTRY(i), D=mod(EXITA(j)-e0)||360, x1=e0+D;
+    const approach=linePts(laneIn(i,WAIT_R),laneIn(i,R_OUT+1.6));
+    if(a.lane===1) return mkCurve([...approach, ...arcR(e0,e0+30,R0,R1), ...arcR(e0+30,x1-34,R1,R1), ...arcR(x1-34,x1,R1,R0), ...out(j)]);
+    return mkCurve([...approach, ...arcR(e0,x1,R0,R0), ...out(j)]);
   }
-  return mkCurve([...arcPts(a.ang,EXITA(a.exit)), ...linePts(laneOut(a.exit,R_OUT+1.6),laneOut(a.exit,90),3)]);
+  const x1=a.ang+mod(EXITA(a.exit)-a.ang), j=a.exit;
+  if(a.lane===1){
+    if(a.man==='exit') return mkCurve([...arcR(a.ang,x1-6,R1,R0), ...arcR(x1-6,x1,R0,R0), ...out(j)]);
+    return mkCurve([...arcR(a.ang,x1-34,R1,R1), ...arcR(x1-34,x1,R1,R0), ...out(j)]);
+  }
+  return mkCurve([...arcR(a.ang,x1,R0,R0), ...out(j)]);
 }
+function sNear(c,p){ let best=0,bd=1e9; for(let k=0;k<=240;k++){ const q=c.getPointAt(k/240), d=q.distanceTo(p); if(d<bd){bd=d;best=k/240*c.len;} } return best; }
+// Blinker plan: list of [fromS, side]. On the ring: right on entry, left while moving to the inner lane, right before the exit.
+function blinkPlan(a, scen){
+  const c=a.path;
+  if(scen.mode!=='ring') return [[0, (a.man==='L'||a.man==='U')?'L':a.man==='R'?'R':null]];
+  if(a.kind==='enter'){
+    const e0=ENTRY(a.arm), x1=e0+(mod(EXITA(a.exit)-e0)||360);
+    if(mod(a.exit-a.arm,4)===1) return [[0,'R']];
+    if(a.lane===1) return [[0,'R'],[sNear(c,ringPt(e0+3,RL[0])),'L'],[sNear(c,ringPt(e0+30,RL[1])),null],[sNear(c,ringPt(x1-62,RL[1])),'R']];
+    return [[0,'R'],[sNear(c,ringPt(e0+10,RL[0])),null],[sNear(c,ringPt(x1-40,RL[0])),'R']];
+  }
+  if(a.man==='exit') return [[0,'R']];
+  const x1=a.ang+mod(EXITA(a.exit)-a.ang), r=a.lane===1?RL[1]:RL[0];
+  return [[0,null],[sNear(c,ringPt(x1-(a.lane===1?62:40),r)),'R']];
+}
+const blinkAt = a => { if(isYou(a)&&state.black) return null; let side=null; for(const [s0,sd] of a.plan) if(a.s>=s0-1e-6) side=sd; return side; };
 function placeOnPath(a,s){
   const c=a.path, u=Math.min(1,Math.max(0,s/c.len));
   const p=c.getPointAt(u), t=c.getTangentAt(u);
@@ -811,14 +1005,20 @@ const saved=store.get('road-trainer-v1',{});
 const state={
   mode: saved.mode||'cross', timer: TIMERS.includes(saved.timer)?saved.timer:15, arrows: saved.arrows!==false, black: !!saved.black,
   cam: 'driver', stats: saved.stats||{cross:{ok:0,n:0,streak:0}, ring:{ok:0,n:0,streak:0}},
-  scen:null, order:[], phase:'ask', t0:0, anim:null
+  scen:null, order:[], sel:new Set(), phase:'ask', t0:0, anim:null
 };
+for(const m of ['cross','ring','reg','uturn']) state.stats[m] = state.stats[m] || {ok:0,n:0,streak:0};
+if(!['cross','ring','reg','uturn'].includes(state.mode)) state.mode='cross';
 function persist(){ store.set('road-trainer-v1',{mode:state.mode,timer:state.timer,arrows:state.arrows,black:state.black,stats:state.stats}); }
 
 function camPreset(){
-  const ring=state.mode==='ring';
-  if(state.cam==='driver' && PHONE.matches) return ring ? {p:v3(1,35,17), t:v3(0,1.5,0)} : {p:v3(1,19,11), t:v3(0,-1.5,0)};
-  if(state.cam==='driver') return ring ? {p:v3(LANE+.2,34,5.6), t:v3(0,-2,0)} : {p:v3(LANE+.1,19.5,3.9), t:v3(0,-3,.4)};
+  const ring=state.mode==='ring', cam=state.cam==='free'?'top':state.cam;
+  if(state.mode==='uturn'){
+    if(cam==='driver') return PHONE.matches ? {p:v3(8,40,40), t:v3(0,4,0)} : {p:v3(12,50,40), t:v3(0,9,0)};
+    return {p:v3(0,6,62), t:v3(0,3,0)};
+  }
+  if(cam==='driver' && PHONE.matches) return ring ? {p:v3(1,35,17), t:v3(0,1.5,0)} : {p:v3(1,19,11), t:v3(0,-1.5,0)};
+  if(cam==='driver') return ring ? {p:v3(LANE+.2,34,5.6), t:v3(0,-2,0)} : {p:v3(LANE+.1,19.5,3.9), t:v3(0,-3,.4)};
   const dz=0;
   return ring ? {p:v3(0,30+dz,52), t:v3(0,dz,2)} : {p:v3(0,22+dz,40), t:v3(0,dz,1)};
 }
@@ -832,20 +1032,25 @@ function moveCam(instant){
 function signsUI(scen){
   const box=$('sign-imgs'); box.innerHTML='';
   const sg=scen.signs[0]||[];
-  if(!sg.length){ box.innerHTML='<div class="none">Знаков нет</div>'; }
+  if(!sg.length){ box.innerHTML = scen.mode==='reg' ? '<div class="none">Смотрите на регулировщика</div>' : '<div class="none">Знаков нет</div>'; }
   sg.forEach(code=>{ const img=new Image(); img.alt=SIGN_NAMES[code]; img.className=code==='8.13'?'plate':'big';
     img.src=signCanvas(code, code==='8.13'?plateOpt(scen,0):{}).toDataURL(); box.appendChild(img); });
-  $('sign-name').textContent = sg.length ? sg.map(c=>SIGN_NAMES[c]).join(' + ') : 'Перекрёсток без знаков приоритета';
+  $('sign-name').textContent = sg.length ? sg.map(c=>SIGN_NAMES[c]).join(' + ') : scen.mode==='reg' ? 'Сигналы регулировщика важнее знаков и светофора (п. 6.15)' : scen.mode==='uturn' ? 'Смотрите на разметку: сплошная или прерывистая' : 'Перекрёсток без знаков приоритета';
   const you=scen.agents[0];
   const ic=$('man-ico'), g=ic.getContext('2d'); g.clearRect(0,0,64,64); arrowIcon(g,you.man,32,32,52,'#1b2129');
   $('man-txt').textContent = scen.mode==='ring' ? ({1:'Первый съезд (направо)',2:'Второй съезд (прямо)',3:'Третий съезд (налево)',0:'Разворот'})[you.exit] : 'Ваш манёвр: '+MAN_NAME[you.man].toLowerCase();
 }
 function chipsUI(){
   const box=$('chips'); box.innerHTML='';
+  if(state.scen.mode==='uturn'){ state.scen.traj.forEach((t,k)=>{
+    const b=document.createElement('button'); b.className='chip'+(state.sel.has(t.id)?' picked':''); b.style.setProperty('--c',t.css);
+    b.innerHTML=`<span class="dot"></span>Траектория ${t.L}<span class="num">${state.sel.has(t.id)?'✓':'·'}</span><kbd>${k+1}</kbd>`;
+    b.onclick=()=>pickAgent(t.id); box.appendChild(b); }); return; }
+  const regm=state.scen.mode==='reg';
   state.scen.agents.forEach((a,k)=>{
     const b=document.createElement('button'); b.className='chip'; b.style.setProperty('--c',a.css); b.dataset.k=a.key;
-    const idx=state.order.indexOf(a.key); if(idx>=0) b.classList.add('picked');
-    b.innerHTML=`<span class="dot"></span>${a.nom}<span class="num">${idx>=0?idx+1:'·'}</span><kbd>${k+1}</kbd>`;
+    const idx=state.order.indexOf(a.key), on=regm?state.sel.has(a.key):idx>=0; if(on) b.classList.add('picked');
+    b.innerHTML=`<span class="dot"></span>${a.nom}<span class="num">${regm?(on?'✓':'·'):(idx>=0?idx+1:'·')}</span><kbd>${k+1}</kbd>`;
     b.onclick=()=>pickAgent(a.key); box.appendChild(b);
   });
 }
@@ -854,21 +1059,24 @@ function toolsUI(){
   $('b-car').classList.toggle('on',state.black);
   $('b-timer').textContent = state.timer ? `${state.timer} с` : (PHONE.matches?'∞':'Без таймера');
   $('b-arrows').classList.toggle('on',state.arrows);
-  $('b-cam').textContent = PHONE.matches ? 'Вид' : (state.cam==='driver' ? 'Сверху' : 'Из машины');
-  $('m-cross').classList.toggle('on',state.mode==='cross'); $('m-ring').classList.toggle('on',state.mode==='ring');
+  if(!PHONE.matches && state.cam==='free') state.cam='top';
+  $('b-cam').textContent = PHONE.matches ? ({driver:'Сверху',top:'Вращать',free:'Вид'})[state.cam] : (state.cam==='driver' ? 'Сверху' : 'Из машины');
+  $('b-cam').classList.toggle('on', state.cam==='free');
+  ['cross','ring','reg','uturn'].forEach(m=>$('m-'+m).classList.toggle('on',state.mode===m)); $('m-sel').value=state.mode;
+  controls.enabled = !PHONE.matches || state.cam==='free';
 }
 
 function newScenario(){
-  state.scen = state.mode==='cross' ? genIntersection() : genRound();
+  state.scen = ({cross:genIntersection, ring:genRound, reg:genReg, uturn:genUturn})[state.mode]();
   const scen=state.scen;
-  state.order=[]; state.phase='ask'; state.anim=null; state.t0=performance.now();
+  state.order=[]; state.sel=new Set(); state.phase='ask'; state.anim=null; state.t0=performance.now();
   disposeWorld();
-  world = scen.mode==='cross' ? buildCrossWorld(scen) : buildRingWorld(scen);
+  world = scen.mode==='ring' ? buildRingWorld(scen) : buildCrossWorld(scen);
   scen.agents.forEach(a=>{
     a.view=makeCar(a); a.path=pathFor(a,scen); a.s=0; a.v=a.kind==='ring'?7:0;
     placeOnPath(a,0); world.add(a.view.group); drawLabel(a);
     a.arrow=groundArrow(a,scen); a.arrow.visible=state.arrows; world.add(a.arrow);
-    a.blinkSide = (isYou(a)&&state.black) ? null : (a.man==='L'||a.man==='U') ? 'L' : (a.man==='R'||a.man==='exit') ? 'R' : null;
+    a.plan=blinkPlan(a,scen);
   });
   particles=[]; state.crash=null;
   scen.agents.forEach(a=>{ a.released=false; a.started=false; });
@@ -876,13 +1084,24 @@ function newScenario(){
   scene.add(world);
   signsUI(scen); chipsUI(); statsUI(); applyTint();
   $('ask').hidden=false; $('res').hidden=true;
-  $('q').textContent = scen.mode==='cross' ? 'Нажмите на машину, которая едет первой, потом на следующую. Ошибётесь будет авария' : 'Нажимайте на машины по очереди: кто едет первым? Ошибётесь будет авария';
+  const sel=scen.mode==='reg'||scen.mode==='uturn';
+  $('q').textContent = ({cross:'Нажмите на машину, которая едет первой, потом на следующую. Ошибётесь будет авария', ring:'Нажимайте на машины по очереди: кто едет первым? Ошибётесь будет авария',
+    reg:'Отметьте машины, которым регулировщик разрешает ехать, и нажмите «Готово»', uturn:'Отметьте все траектории, по которым можно развернуться, и нажмите «Готово»'})[scen.mode];
+  $('hint').textContent = ({cross:'Кто может ехать одновременно, можно нажимать в любом порядке.', ring:'Кто может ехать одновременно, можно нажимать в любом порядке.', reg:'Можно отметить несколько машин или ни одной.', uturn:'Правильных траекторий может быть несколько.'})[scen.mode];
+  $('b-done').hidden=!sel;
 }
 
 const byKey=k=>state.scen.agents.find(a=>a.key===k);
 function pickAgent(key){
-  if(state.phase!=='ask' || state.order.includes(key)) return;
-  const scen=state.scen, a=byKey(key);
+  if(state.phase!=='ask') return;
+  const scen=state.scen;
+  if(scen.mode==='reg'||scen.mode==='uturn'){
+    state.sel.has(key) ? state.sel.delete(key) : state.sel.add(key);
+    if(scen.mode==='reg') scen.agents.forEach(drawLabel); else scen.traj.forEach(drawTraj);
+    chipsUI(); return;
+  }
+  if(state.order.includes(key)) return;
+  const a=byKey(key);
   const blocker = scen.edges.find(e=>e.y===key && !state.order.includes(e.w));
   state.order.push(key); scen.agents.forEach(drawLabel); chipsUI();
   if(blocker){ if(state.black){ bully(a, byKey(blocker.w), blocker); return; } crash(a, byKey(blocker.w), blocker); return; }
@@ -947,8 +1166,34 @@ function validOrder(order, edges){
   return order.every((k,idx)=>edges.filter(e=>e.y===k).every(e=>{ const p=order.indexOf(e.w); return p>=0 && p<idx; }));
 }
 
-function finish(timeout, gaveUp, crashed){
+function finishSel(timeout, gaveUp){
   const scen=state.scen; state.phase='result';
+  const reg=scen.mode==='reg';
+  const items = reg ? scen.agents.map(a=>({k:a.key, ok:a.ok, html:`<i style="--c:${a.css}"></i>${a.nom}`})) : scen.traj.map(t=>({k:t.id, ok:t.ok, html:`<i style="--c:${t.css}"></i>${t.L}`}));
+  const same = items.every(it=>it.ok===state.sel.has(it.k));
+  const bmw = state.black && !gaveUp;
+  const ok = bmw || (!timeout && !gaveUp && same);
+  if(!state.black){ const st=state.stats[state.mode]; st.n++; if(ok){ st.ok++; st.streak++; } else st.streak=0; persist(); statsUI(); }
+  const v=$('verdict'); v.className='verdict '+(ok?'ok':'bad');
+  v.innerHTML = bmw ? '<span class="badge">✓</span>BMW всегда прав' : ok ? '<span class="badge">✓</span>Верно' : `<span class="badge">✕</span>${timeout?'Время вышло':gaveUp?'Правильный ответ':'Не так'}`;
+  $('rule').textContent = ruleLine(scen);
+  const sb=$('stages'); sb.innerHTML='';
+  const yes=items.filter(i=>i.ok), no=items.filter(i=>!i.ok);
+  const grp=(label,arr)=>arr.length?`<span class="stage">${label} ${arr.map(i=>i.html).join(', ')}</span>`:'';
+  sb.innerHTML = reg ? grp('Едут:',yes)+grp('Стоят:',no) : grp('Можно:',yes)+grp('Нельзя:',no);
+  const ul=$('why'); ul.innerHTML='';
+  if(bmw) ul.insertAdjacentHTML('beforeend','<li class="jk"><b>Шуточный режим, в зачёт не идёт.</b> BMW разворачивается где хочет и едет, когда хочет. Ниже как было бы по ПДД:</li>');
+  explain(scen).forEach(t=>{ const li=document.createElement('li'); li.innerHTML=t; ul.appendChild(li); });
+  $('ask').hidden=true; $('res').hidden=false;
+  $('b-replay').textContent = reg ? 'Показать проезд' : 'Показать разворот';
+  if(!reg){ scen.traj.forEach(t=>{ drawTraj(t); t.rib.userData.main.material.opacity = t.ok ? .95 : .22; });
+    const you=scen.agents[0], t=scen.traj.find(t=>t.ok&&state.sel.has(t.id))||scen.traj.find(t=>t.ok); you.path=t.curve; }
+  startAnim();
+}
+function finish(timeout, gaveUp, crashed){
+  const scen=state.scen;
+  if(scen.mode==='reg'||scen.mode==='uturn') return finishSel(timeout, gaveUp);
+  state.phase='result';
   const bmw = state.black && !gaveUp;
   const ok = bmw || (!timeout && !gaveUp && !crashed && validOrder(state.order, scen.edges));
   if(!state.black){ const st=state.stats[state.mode]; st.n++; if(ok){ st.ok++; st.streak++; } else st.streak=0; persist(); statsUI(); }
@@ -974,12 +1219,21 @@ function finish(timeout, gaveUp, crashed){
   if(timeout||gaveUp) startAnim();
 }
 
+const GESTURE_RULE={
+  side:'Руки вытянуты в стороны: со стороны левого и правого бока можно прямо и направо, со стороны груди и спины движение запрещено (п. 6.10).',
+  down:'Руки опущены: то же, что руки в стороны. С левого и правого бока прямо и направо, с груди и спины стоять (п. 6.10).',
+  fwd:'Правая рука вытянута вперёд: со стороны левого бока можно во всех направлениях, со стороны груди только направо, со стороны спины и правого бока стоять (п. 6.10).',
+  up:'Рука поднята вверх: движение запрещено всем, кроме тех, кто не успевает остановиться (п. 6.10, 6.14).'
+};
 function ruleLine(s){
   const you=s.agents[0];
+  if(s.mode==='reg') return GESTURE_RULE[s.gesture];
+  if(s.mode==='uturn') return 'На перекрёстке развернуться можно по любой траектории внутри него, до центра или вокруг, если это не запрещено знаком. До и после перекрёстка нельзя пересекать сплошную линию.';
   if(s.mode==='ring'){
-    if(s.ringMode==='yield') return 'Знаки 4.3 + 2.4: въезжающий на кольцо уступает тем, кто уже движется по кольцу.';
-    if(s.ringMode==='only') return 'Только знак 4.3, без 2.4: по п. 13.11¹ въезжающий всё равно уступает тем, кто движется по кольцу.';
-    return 'Вы въезжаете с главной (2.1 + 4.3): машины на кольце уступают вам. Въезжающие со знаком 2.4 уступают кольцу.';
+    const lane = s.edges.some(e=>e.why==='lane') ? ' Перед съездом с внутренней полосы перестраиваются вправо и уступают тем, кто едет по внешней (п. 8.4, 8.5).' : ' Кольцо двухполосное: к дальним съездам едут по внутренней полосе, к съезду перестраиваются вправо.';
+    if(s.ringMode==='yield') return 'Знаки 4.3 + 2.4: въезжающий на кольцо уступает тем, кто уже движется по кольцу.'+lane;
+    if(s.ringMode==='only') return 'Только знак 4.3, без 2.4: по п. 13.11¹ въезжающий всё равно уступает тем, кто движется по кольцу.'+lane;
+    return 'Вы въезжаете с главной (2.1 + 4.3): машины на кольце уступают вам. Въезжающие со знаком 2.4 уступают кольцу.'+lane;
   }
   const c=s.cfg, sg=s.signs[0]||[];
   if(c.type==='equal') return `Равнозначный перекрёсток${sg.includes('1.6')?' (знак 1.6)':' без знаков'}: работает помеха справа (п. 13.11), а при повороте налево уступаете встречным, едущим прямо и направо (п. 13.12).`;
@@ -991,7 +1245,34 @@ function ruleLine(s){
     ? `Вы на второстепенной, главная меняет направление (табличка 8.13). Уступаете всем на главной; с другой второстепенной: помеха справа (п. 13.10).${stop}`
     : `Вы на второстепенной: уступаете всем, кто едет по главной (п. 13.9). Со встречной второстепенной разъезжаетесь по правилам равнозначных дорог.${stop}`;
 }
+function explainReg(s){
+  return s.agents.map(a=>{
+    const who=isYou(a)?'Вы':a.nom, from=SIDE_NAME[a.rel], man=MAN_NAME[a.man].toLowerCase();
+    let why;
+    if(a.ok) why = (s.gesture==='fwd'&&a.rel===1) ? 'с левого бока можно в любом направлении' : (s.gesture==='fwd') ? 'с груди можно только направо' : 'с бока можно прямо и направо';
+    else if(s.gesture==='up') why='рука вверх, стоят все';
+    else if(s.gesture==='fwd') why = a.rel===0 ? 'с груди можно только направо' : a.rel===2 ? 'со спины ехать нельзя' : 'с правого бока ехать нельзя';
+    else why = (a.rel===0||a.rel===2) ? 'грудь или спина регулировщика: стоять' : 'с бока только прямо и направо, налево и разворот нельзя';
+    return `<b>${who}</b> ${from}, ${man}: ${a.ok?'<b style="color:var(--ok)">можно</b>':'<b style="color:var(--bad)">нельзя</b>'}, ${why}.`;
+  });
+}
+function explainU(s){
+  const sg=s.sign, sn=sg?SIGN_NAMES[sg]:'';
+  return s.traj.map(t=>{
+    const head=`<b>${t.L}</b> `, ok=t.ok?'<b style="color:var(--ok)">можно</b>':'<b style="color:var(--bad)">нельзя</b>';
+    if(t.id==='A'||t.id==='B'){
+      const where = t.id==='A' ? 'на перекрёстке, не доезжая до центра' : 'на перекрёстке с объездом центра';
+      if(!t.ok) return `${head}${where}: ${ok}. Знак ${sn} запрещает разворот на этом перекрёстке.`;
+      return `${head}${where}: ${ok}. ПДД не требуют объезжать центр, важно не оказаться на встречной при выезде с перекрёстка.${sg==='3.18.2'?' Знак 3.18.2 запрещает только поворот налево, разворот он не запрещает.':''} <small>п. 8.6</small>`;
+    }
+    const before=t.id==='V', place = before ? 'до перекрёстка' : 'после перекрёстка (сначала проезжаете прямо)';
+    if(!t.ok) return `${head}${place}: ${ok}, придётся пересечь сплошную линию 1.1. <small>Прил. 2 ПДД</small>`;
+    return `${head}${place}: ${ok}, разметка прерывистая. Уступите встречным. ${sg&&sg!=='3.18.2'?`Знак ${sg} действует только на перекрёсток, перед которым стоит.`:''} <small>п. 8.8</small>`;
+  });
+}
 function explain(s){
+  if(s.mode==='reg') return explainReg(s);
+  if(s.mode==='uturn') return explainU(s);
   const byKey=k=>s.agents.find(a=>a.key===k);
   const out=[];
   const dat=a=>isYou(a)?'вам':a.dat;
@@ -1004,6 +1285,7 @@ function explain(s){
     if(e.why==='left') t=`<b>${yieldsTxt(Y)}</b> ${dat(W)}: поворот налево, а ${who} ${isYou(W)?'едете':'едет'} навстречу ${W.man==='S'?'прямо':'направо'}. <small>п. 13.12</small>`;
     if(e.why==='ring') t=`<b>${yieldsTxt(Y)}</b> ${dat(W)}: ${who} уже ${isYou(W)?'движетесь':'движется'} по кольцу. <small>п. 13.11¹</small>`;
     if(e.why==='ringOnly') t=`<b>${yieldsTxt(Y)}</b> ${dat(W)}: ${who} на кольце, а знака 2.1 у въезда нет. <small>п. 13.11¹</small>`;
+    if(e.why==='lane') t=`<b>${yieldsTxt(Y)}</b> ${dat(W)}: перестраивается с внутренней полосы к съезду, а ${who} ${isYou(W)?'едете':'едет'} по внешней без перестроения. <small>п. 8.4</small>`;
     if(e.why==='ringMain') t=`<b>${yieldsTxt(Y)}</b> ${dat(W)}: ${who} ${isYou(W)?'въезжаете':'въезжает'} с главной дороги (знак 2.1). <small>п. 13.9</small>`;
     out.push(t);
   });
@@ -1021,7 +1303,7 @@ function startAnim(){
   state.crash=null; particles.forEach(m=>{ m.parent&&m.parent.remove(m); }); particles=[];
   scen.agents.forEach(a=>{ a.s=0; a.v=a.kind==='ring'?7:0; a.released=false; a.started=false; a.view.group.rotation.set(0,0,0); placeOnPath(a,0); a.arrow.visible=state.arrows;
     if(a.flash) a.view.group.traverse(o=>{ if(o.isMesh && o.material.emissive && !o.material.userData.keep && o.material!==a.view.blink.L && o.material!==a.view.blink.R) o.material.emissiveIntensity=0; }); });
-  const delay={}; scen.stages.forEach((g,k)=>g.forEach(key=>delay[key]=0.5+k*2.3));
+  const delay={}; scen.agents.forEach(a=>delay[a.key]=Infinity); scen.stages.forEach((g,k)=>g.forEach(key=>delay[key]=0.5+k*2.3));
   state.anim={t0:performance.now(), delay};
 }
 
@@ -1036,21 +1318,28 @@ canvas.addEventListener('pointerup',e=>{
   if(hit) pickAgent(hit.object.userData.agent);
 });
 addEventListener('keydown',e=>{
-  if(e.key==='Enter' || (e.key===' ' && state.phase==='result')){ if(state.phase==='result'){ e.preventDefault(); newScenario(); } }
-  const n=parseInt(e.key,10); if(n>=1 && state.scen && n<=state.scen.agents.length) pickAgent(state.scen.agents[n-1].key);
+  if(e.target && e.target.tagName==='SELECT') return;
+  if(e.key==='Enter' || (e.key===' ' && state.phase==='result')){ if(state.phase==='result'){ e.preventDefault(); newScenario(); } else if(e.key==='Enter' && !$('b-done').hidden){ e.preventDefault(); finish(false); } }
+  const n=parseInt(e.key,10), list=state.scen&&(state.scen.mode==='uturn'?state.scen.traj.map(t=>t.id):state.scen.agents.map(a=>a.key));
+  if(n>=1 && list && n<=list.length) pickAgent(list[n-1]);
 });
 $('b-next').onclick=newScenario;
 $('b-skip').onclick=()=>{ if(state.phase==='ask') finish(false,true); };
+$('b-done').onclick=()=>{ if(state.phase==='ask') finish(false); };
 $('b-replay').onclick=startAnim;
 $('b-timer').onclick=()=>{ state.timer=TIMERS[(TIMERS.indexOf(state.timer)+1)%TIMERS.length]; persist(); toolsUI(); state.t0=performance.now(); };
 $('b-arrows').onclick=()=>{ state.arrows=!state.arrows; persist(); toolsUI(); state.scen.agents.forEach(a=>{ a.arrow.visible=state.arrows && a.s<1; drawLabel(a); }); };
-$('b-car').onclick=()=>{ state.black=!state.black; persist(); toolsUI(); applyTint(); { const y=state.scen.agents.find(isYou); y.blinkSide = state.black?null:(y.man==='L'||y.man==='U')?'L':(y.man==='R'||y.man==='exit')?'R':null; }
+$('b-car').onclick=()=>{ state.black=!state.black; persist(); toolsUI(); applyTint();
   const you=state.scen.agents.find(isYou), old=you.view.group, parent=old.parent;
   const nv=makeCar(you); nv.group.position.copy(old.position); nv.group.rotation.copy(old.rotation);
   parent.remove(old); old.traverse(o=>{ if(o.geometry) o.geometry.dispose(); }); you.view=nv; parent.add(nv.group); drawLabel(you); };
-$('b-cam').onclick=()=>{ state.cam=state.cam==='driver'?'top':'driver'; toolsUI(); moveCam(); };
+$('b-cam').onclick=()=>{
+  const seq = PHONE.matches ? ['driver','top','free'] : ['driver','top'];
+  state.cam = seq[(seq.indexOf(state.cam)+1)%seq.length]; toolsUI();
+  if(state.cam!=='free') moveCam(); };
 function setMode(m){ if(state.mode===m) return; state.mode=m; persist(); toolsUI(); newScenario(); moveCam(); }
-$('m-cross').onclick=()=>setMode('cross'); $('m-ring').onclick=()=>setMode('ring');
+['cross','ring','reg','uturn'].forEach(m=>$('m-'+m).onclick=()=>setMode(m));
+$('m-sel').onchange=e=>{ setMode(e.target.value); e.target.blur(); };
 
 /* loop */
 let baseW=0, baseH=0;
@@ -1061,15 +1350,23 @@ function layout(force){
   // ignore mobile URL-bar show/hide: only re-layout on width change or a big height change
   if(!force && innerWidth===baseW && Math.abs(innerHeight-baseH)<160) return;
   baseW=innerWidth; baseH=innerHeight;
-  controls.enabled=!phone;
-  const ui=$('ui');
-  if(phone){
+  controls.enabled=!phone || state.cam==='free';
+  const ui=$('ui'), land = phone && innerWidth > innerHeight*1.15;
+  document.body.classList.toggle('land', land);
+  if(land){
+    ui.style.height=baseH+'px'; ui.style.bottom='auto';
+    const t=$('top').getBoundingClientRect().bottom+6, dW=Math.round(Math.min(Math.max(innerWidth*.42,300),420));
+    document.documentElement.style.setProperty('--dockT',t+'px'); document.documentElement.style.setProperty('--dockW',dW+'px');
+    const left=$('dock').getBoundingClientRect().left-6;
+    canvas.style.top=t+'px'; canvas.style.height=Math.max(140,baseH-t-8)+'px'; canvas.style.bottom='auto'; canvas.style.width=Math.max(200,left)+'px'; canvas.style.right='auto';
+  } else if(phone){
+    canvas.style.width=''; canvas.style.right='';
     ui.style.height=baseH+'px'; ui.style.bottom='auto';
     const dockH=Math.round(Math.min(baseH*0.43, 390));
     document.documentElement.style.setProperty('--dockH',dockH+'px');
     const t=$('top').getBoundingClientRect().bottom+6, b=$('dock').getBoundingClientRect().top-6;
     canvas.style.top=t+'px'; canvas.style.height=Math.max(140,b-t)+'px'; canvas.style.bottom='auto';
-  } else { ui.style.height=''; ui.style.bottom=''; canvas.style.top='0'; canvas.style.height='100%'; }
+  } else { ui.style.height=''; ui.style.bottom=''; canvas.style.top='0'; canvas.style.height='100%'; canvas.style.width=''; canvas.style.right=''; }
   resize(); moveCam(true);
 }
 function resize(){ const w=canvas.clientWidth||innerWidth, h=canvas.clientHeight||innerHeight; renderer.setSize(w,h,false); camera.aspect=w/h;
@@ -1083,7 +1380,7 @@ function frame(now){
   const scen=state.scen;
   // blinkers
   const on=Math.floor(now/380)%2===0;
-  scen.agents.forEach(a=>{ const b=a.view.blink; b.L.emissiveIntensity = a.blinkSide==='L'&&on?2.2:0; b.R.emissiveIntensity = a.blinkSide==='R'&&on?2.2:0; });
+  scen.agents.forEach(a=>{ const b=a.view.blink, side=blinkAt(a); b.L.emissiveIntensity = side==='L'&&on?2.2:0; b.R.emissiveIntensity = side==='R'&&on?2.2:0; });
   // timer
   const fill=$('t-fill');
   if(state.phase==='ask'){
@@ -1136,7 +1433,7 @@ function frame(now){
 }
 toolsUI(); newScenario(); layout(true);
 requestAnimationFrame(frame);
-window.__road={state, genIntersection, genRound, validOrder, camera, controls};
+window.__road={state, genIntersection, genRound, genReg, genUturn, validOrder, camera, controls, newScenario};
 </script>
 
 </body>
