@@ -32,6 +32,10 @@
   color-scheme:light;
 }
 [hidden]{display:none!important}
+#toast{position:fixed;left:50%;top:calc(76px + env(safe-area-inset-top,0px));transform:translate(-50%,-6px);z-index:5;pointer-events:none;opacity:0;transition:opacity .2s, transform .2s;
+  background:rgba(27,33,41,.88);color:#fff;font-size:13px;font-weight:500;padding:8px 14px;border-radius:999px;white-space:nowrap}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+body.phone #toast{top:calc(64px + env(safe-area-inset-top,0px))}
 html{overscroll-behavior:none}
 body{position:fixed;inset:0;overscroll-behavior:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
 html,body{height:100%}
@@ -42,7 +46,7 @@ body.tint #tint{opacity:1}
 .joke{margin:0;font-size:12.5px;line-height:1.4;padding:7px 10px;border-radius:9px;background:#14171c;color:#e9edf2}
 .joke b{color:#7fb2ff;font-weight:600;margin-right:4px}
 #why li.jk{color:var(--muted)}
-#ui{position:fixed;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;
+#ui{position:fixed;inset:0;box-sizing:border-box;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
   padding-block:calc(14px + env(safe-area-inset-top,0px)) calc(14px + env(safe-area-inset-bottom,0px))}
 #ui > *{pointer-events:auto}
@@ -83,7 +87,11 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .timer i{display:block;height:100%;width:100%;background:var(--accent);transform-origin:left;transition:background .3s}
 .timer i.low{background:var(--bad)}
 .timer i.off{background:transparent}
-.pane{padding:14px 16px 16px;display:flex;flex-direction:column;gap:12px}
+.pane{flex:1;min-height:0;display:flex;flex-direction:column}
+.pane .scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;padding:14px 16px 10px;display:flex;flex-direction:column;gap:12px}
+.pane .foot{flex:none;box-sizing:border-box;height:58px;padding:0 16px;border-top:1px solid var(--line);flex-wrap:nowrap}
+#dock{height:min(300px,40vh);display:flex;flex-direction:column}
+#dock .timer{flex:none}
 .qrow{display:flex;align-items:baseline;gap:10px;justify-content:space-between}
 .q{margin:0;font-size:15px;font-weight:500;text-wrap:balance}
 .clock{font-family:var(--f-mono);font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums;flex:none}
@@ -113,7 +121,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .stage b{font-family:var(--f-mono);font-size:11px;width:18px;height:18px;border-radius:5px;background:var(--ink);color:#fff;display:grid;place-items:center;font-weight:500}
 .stage i{width:10px;height:10px;border-radius:3px;background:var(--c);box-shadow:inset 0 0 0 1px rgba(0,0,0,.15);display:inline-block}
 .arrow-sep{color:var(--muted);font-size:12px}
-#why{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;max-height:26vh;overflow:auto}
+#why{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
 #why li{font-size:13.5px;line-height:1.45;padding-left:14px;position:relative;color:var(--ink)}
 #why li::before{content:"";position:absolute;left:2px;top:.6em;width:5px;height:5px;border-radius:50%;background:var(--muted)}
 #why li small{color:var(--muted)}
@@ -135,7 +143,8 @@ body.phone #dock #sign-imgs img.big{width:58px;height:58px}
 body.phone #dock #sign-imgs img.plate{width:46px;height:46px}
 body.phone #dock #sign-imgs .none{padding:0;font-size:12px}
 body.phone #dock .man{border-top:0;padding-top:0;margin-left:auto}
-body.phone .pane{padding:10px 14px 12px;gap:9px}
+body.phone .pane .scroll{padding:8px 14px 8px;gap:9px}
+body.phone .pane .foot{padding:0 14px;height:52px}
 body.phone .q{font-size:14px}
 body.phone .verdict{font-size:15px}
 body.phone #rule{font-size:13px}
@@ -150,18 +159,21 @@ body.phone .man span{font-size:12px}
 body.phone .man canvas{width:24px;height:24px}
 body.phone .chip{padding:7px 10px 7px 8px;font-size:13px}
 body.phone .chip kbd{display:none}
-body.phone .hint{display:none}
+body.phone .hint{font-size:12px}
 body.phone #why{max-height:none}
 body.phone #dock{height:var(--dockH,40vh);display:flex;flex-direction:column;flex:none}
 body.phone #dock .timer{flex:none}
 body.phone #dock #signs{flex:none}
-body.phone .pane{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y}
+body.phone #dock #signs{height:62px;box-sizing:border-box;overflow:hidden}
 body.phone .chip{transition:none}
 body.phone .chip:active{transform:none}
 .msel{display:none;font:inherit;font-size:13px;font-weight:500;color:var(--ink);padding:6px 24px 6px 9px;border-radius:9px;border:1px solid var(--line);background:var(--paper-solid) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23626c78' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right 8px center;-webkit-appearance:none;appearance:none;min-width:0}
 body.phone .seg{display:none}
-body.phone .msel{display:block;flex:0 1 auto}
-body.phone.land #dock{position:fixed;right:max(8px,env(safe-area-inset-right,0px));top:var(--dockT,60px);bottom:calc(8px + env(safe-area-inset-bottom,0px));width:var(--dockW,42vw);height:auto!important}
+body.phone .msel{display:block;flex:none;width:122px;padding-right:20px;background-position:right 6px center;text-overflow:ellipsis}
+body.phone.land #dock{position:fixed;right:max(8px,env(safe-area-inset-right,0px));top:var(--dockT,60px);bottom:auto;width:var(--dockW,42vw);height:var(--dockLH,260px)!important;max-height:none;margin:0}
+@media (max-width:370px){ body.phone .stat{display:none} body.phone .msel{width:104px;font-size:12px} body.phone #top{gap:4px!important} body.phone .tool{padding:6px 6px!important} }
+body.phone .primary kbd{display:none}
+body.phone .foot .ghost{white-space:nowrap;font-size:12.5px;padding:8px 8px}
 body.phone.land #dock #sign-imgs img.big{width:48px;height:48px}
 body.phone.land #dock #sign-imgs img.plate{width:38px;height:38px}
 body.phone.land #top{align-self:stretch}
@@ -171,6 +183,7 @@ body.phone.land #top{align-self:stretch}
 
 <canvas id="c" aria-label="3D-сцена перекрёстка"></canvas>
 <div id="tint" aria-hidden="true"></div>
+<div id="toast" role="status" aria-live="polite"></div>
 <div id="ui">
   <header id="top" class="glass">
     <div class="brand">
@@ -206,26 +219,28 @@ body.phone.land #top{align-self:stretch}
 
   <section id="dock" class="glass">
     <div class="timer"><i id="t-fill"></i></div>
-    <div id="ask" class="pane">
+    <div id="ask" class="pane"><div class="scroll">
       <div class="qrow">
         <p class="q" id="q">Нажимайте на машины в том порядке, в каком они проедут</p>
         <span class="clock" id="clock">15.0</span>
       </div>
       <p class="joke" id="joke" hidden></p>
       <div id="chips"></div>
-      <div class="row">
-        <p class="hint" id="hint">Кто может ехать одновременно, можно нажимать в любом порядке.</p>
+      <p class="hint" id="hint">Кто может ехать одновременно, можно нажимать в любом порядке.</p>
+      </div>
+      <div class="row foot">
         <div class="spacer"></div>
         <button class="ghost" id="b-skip">Показать ответ</button>
         <button class="primary" id="b-done" hidden>Готово</button>
       </div>
     </div>
-    <div id="res" class="pane" hidden>
+    <div id="res" class="pane" hidden><div class="scroll">
       <div class="verdict" id="verdict"></div>
       <p id="rule"></p>
       <div id="stages"></div>
       <ul id="why"></ul>
-      <div class="row">
+      </div>
+      <div class="row foot">
         <button class="ghost" id="b-replay">Повторить анимацию</button>
         <div class="spacer"></div>
         <button class="primary" id="b-next">Дальше <kbd>Enter</kbd></button>
@@ -591,6 +606,7 @@ scene.background=new THREE.Color('#e7ebe7');
 scene.fog=new THREE.Fog('#e7ebe7', 70, 170);
 const camera=new THREE.PerspectiveCamera(48,1,0.5,400);
 const controls=new OrbitControls(camera, canvas);
+controls.touches={ONE:THREE.TOUCH.ROTATE, TWO:THREE.TOUCH.DOLLY_ROTATE};
 controls.enableDamping=true; controls.dampingFactor=0.08; controls.maxPolarAngle=Math.PI*0.47; controls.minDistance=8; controls.maxDistance=90;
 scene.add(new THREE.HemisphereLight('#ffffff','#b9c4b5',1.15));
 const sun=new THREE.DirectionalLight('#fff6e8',1.6); sun.position.set(-30,50,22); sun.castShadow=true;
@@ -908,7 +924,7 @@ function makeOfficer(scen){
   const S=(c,o={})=>new THREE.MeshStandardMaterial({color:c,roughness:.7,...o});
   const uni=S('#33414f'), vest=S('#d4f53c',{emissive:'#5f7a00',emissiveIntensity:.3}), white=S('#f6f6f2',{roughness:.4}), skin=S('#e3b590'), dark=S('#15191e'), refl=S('#e9eef2',{emissive:'#ffffff',emissiveIntensity:.35});
   const add=(geo,mat,x,y,z,parent=g)=>{ const m=new THREE.Mesh(geo,mat); m.position.set(x,y,z); m.castShadow=true; parent.add(m); return m; };
-  const disc=add(new THREE.CylinderGeometry(.9,.9,.08,32), white, 0,.04,0); disc.receiveShadow=true;
+  const disc=add(new THREE.CylinderGeometry(.6,.6,.08,32), white, 0,.04,0); disc.receiveShadow=true;
   [-1,1].forEach(sx=>{ add(new THREE.BoxGeometry(.24,.92,.28),uni,sx*.15,.5,0); add(new THREE.BoxGeometry(.26,.12,.38),dark,sx*.15,.1,.05); });
   add(new THREE.BoxGeometry(.66,.78,.36),uni,0,1.32,0);
   add(new THREE.BoxGeometry(.7,.58,.4),vest,0,1.36,0);
@@ -948,7 +964,8 @@ function pathFor(a, scen){
     const pe=laneIn(i,HALF), px=laneOut(j,HALF);
     let mid;
     if(a.man==='S') mid=linePts(pe,px,1);
-    else if(a.man==='U'){ const o=OUT[i], d=[-o[0],-o[1]], c1=pe.clone().add(v3(d[0]*4.6,d[1]*4.6)), c2=px.clone().add(v3(d[0]*4.6,d[1]*4.6)); mid=new THREE.CubicBezierCurve3(pe,c1,c2,px).getPoints(20); }
+    else if(a.man==='U'){ const o=OUT[i], d=[-o[0],-o[1]], k=scen.mode==='reg'?7.6:4.6, c1=pe.clone().add(v3(d[0]*k,d[1]*k)), c2=px.clone().add(v3(d[0]*k,d[1]*k)); mid=new THREE.CubicBezierCurve3(pe,c1,c2,px).getPoints(20); }
+    else if(a.man==='L' && scen.mode==='reg'){ const d=[-OUT[i][0],-OUT[i][1]]; const ctrl= d[0]===0 ? v3(pe.x,px.z) : v3(px.x,pe.z); mid=new THREE.CubicBezierCurve3(pe,ctrl,ctrl,px).getPoints(18); }
     else { const d=[-OUT[i][0],-OUT[i][1]]; const ctrl= d[0]===0 ? v3(pe.x,px.z) : v3(px.x,pe.z);
       mid=new THREE.QuadraticBezierCurve3(pe,ctrl,px).getPoints(14); }
     return mkCurve([...linePts(laneIn(i,WAIT_X),pe), ...mid, ...linePts(px,laneOut(j,90),3)]);
@@ -1060,7 +1077,7 @@ function toolsUI(){
   $('b-timer').textContent = state.timer ? `${state.timer} с` : (PHONE.matches?'∞':'Без таймера');
   $('b-arrows').classList.toggle('on',state.arrows);
   if(!PHONE.matches && state.cam==='free') state.cam='top';
-  $('b-cam').textContent = PHONE.matches ? ({driver:'Сверху',top:'Вращать',free:'Вид'})[state.cam] : (state.cam==='driver' ? 'Сверху' : 'Из машины');
+  $('b-cam').textContent = PHONE.matches ? (state.cam==='free'?'Обзор':'Вид') : (state.cam==='driver' ? 'Сверху' : 'Из машины');
   $('b-cam').classList.toggle('on', state.cam==='free');
   ['cross','ring','reg','uturn'].forEach(m=>$('m-'+m).classList.toggle('on',state.mode===m)); $('m-sel').value=state.mode;
   controls.enabled = !PHONE.matches || state.cam==='free';
@@ -1083,7 +1100,7 @@ function newScenario(){
   scen.edges.forEach(e=>{ const cp=closest(byKey(e.y).path, byKey(e.w).path); e.sY=cp.a; e.sW=cp.b; e.clearW=cp.b+5.5; });
   scene.add(world);
   signsUI(scen); chipsUI(); statsUI(); applyTint();
-  $('ask').hidden=false; $('res').hidden=true;
+  $('ask').hidden=false; $('res').hidden=true; resetScroll();
   const sel=scen.mode==='reg'||scen.mode==='uturn';
   $('q').textContent = ({cross:'Нажмите на машину, которая едет первой, потом на следующую. Ошибётесь будет авария', ring:'Нажимайте на машины по очереди: кто едет первым? Ошибётесь будет авария',
     reg:'Отметьте машины, которым регулировщик разрешает ехать, и нажмите «Готово»', uturn:'Отметьте все траектории, по которым можно развернуться, и нажмите «Готово»'})[scen.mode];
@@ -1092,6 +1109,9 @@ function newScenario(){
 }
 
 const byKey=k=>state.scen.agents.find(a=>a.key===k);
+function resetScroll(){ document.querySelectorAll('.pane .scroll').forEach(e=>e.scrollTop=0); }
+let toastT=0;
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('on'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('on'),2600); }
 function pickAgent(key){
   if(state.phase!=='ask') return;
   const scen=state.scen;
@@ -1184,7 +1204,7 @@ function finishSel(timeout, gaveUp){
   const ul=$('why'); ul.innerHTML='';
   if(bmw) ul.insertAdjacentHTML('beforeend','<li class="jk"><b>Шуточный режим, в зачёт не идёт.</b> BMW разворачивается где хочет и едет, когда хочет. Ниже как было бы по ПДД:</li>');
   explain(scen).forEach(t=>{ const li=document.createElement('li'); li.innerHTML=t; ul.appendChild(li); });
-  $('ask').hidden=true; $('res').hidden=false;
+  $('ask').hidden=true; $('res').hidden=false; resetScroll();
   $('b-replay').textContent = reg ? 'Показать проезд' : 'Показать разворот';
   if(!reg){ scen.traj.forEach(t=>{ drawTraj(t); t.rib.userData.main.material.opacity = t.ok ? .95 : .22; });
     const you=scen.agents[0], t=scen.traj.find(t=>t.ok&&state.sel.has(t.id))||scen.traj.find(t=>t.ok); you.path=t.curve; }
@@ -1214,7 +1234,7 @@ function finish(timeout, gaveUp, crashed){
   else if(crashed===true){ const c=state.crash; ul.insertAdjacentHTML('beforeend',`<li><b>${isYou(c.Y)?'Вы поехали':c.Y.nom+' поехала'} раньше, чем ${isYou(c.W)?'вы':c.W.nom.toLowerCase()}</b>, а ${isYou(c.Y)?'должны были':'должна была'} уступить. Отсюда ДТП.</li>`); }
   if(false) ul.insertAdjacentHTML('afterbegin',`<li class="jk"><b>Шуточный режим:</b> ${pick(ok?JOKE_OK:JOKE_BAD)}</li>`);
   explain(scen).forEach(t=>{ const li=document.createElement('li'); li.innerHTML=t; ul.appendChild(li); });
-  $('ask').hidden=true; $('res').hidden=false;
+  $('ask').hidden=true; $('res').hidden=false; resetScroll();
   $('b-replay').textContent = ok ? 'Повторить проезд' : 'Показать правильный проезд';
   if(timeout||gaveUp) startAnim();
 }
@@ -1336,7 +1356,8 @@ $('b-car').onclick=()=>{ state.black=!state.black; persist(); toolsUI(); applyTi
 $('b-cam').onclick=()=>{
   const seq = PHONE.matches ? ['driver','top','free'] : ['driver','top'];
   state.cam = seq[(seq.indexOf(state.cam)+1)%seq.length]; toolsUI();
-  if(state.cam!=='free') moveCam(); };
+  if(state.cam!=='free') moveCam();
+  if(PHONE.matches) toast(({driver:'Вид из машины', top:'Вид сверху', free:'Обзор: крутите сцену двумя пальцами'})[state.cam]); };
 function setMode(m){ if(state.mode===m) return; state.mode=m; persist(); toolsUI(); newScenario(); moveCam(); }
 ['cross','ring','reg','uturn'].forEach(m=>$('m-'+m).onclick=()=>setMode(m));
 $('m-sel').onchange=e=>{ setMode(e.target.value); e.target.blur(); };
@@ -1356,7 +1377,8 @@ function layout(force){
   if(land){
     ui.style.height=baseH+'px'; ui.style.bottom='auto';
     const t=$('top').getBoundingClientRect().bottom+6, dW=Math.round(Math.min(Math.max(innerWidth*.42,300),420));
-    document.documentElement.style.setProperty('--dockT',t+'px'); document.documentElement.style.setProperty('--dockW',dW+'px');
+    const sb=parseFloat(getComputedStyle(ui).paddingBottom)||8;
+    document.documentElement.style.setProperty('--dockT',t+'px'); document.documentElement.style.setProperty('--dockW',dW+'px'); document.documentElement.style.setProperty('--dockLH',Math.max(160,baseH-t-sb)+'px');
     const left=$('dock').getBoundingClientRect().left-6;
     canvas.style.top=t+'px'; canvas.style.height=Math.max(140,baseH-t-8)+'px'; canvas.style.bottom='auto'; canvas.style.width=Math.max(200,left)+'px'; canvas.style.right='auto';
   } else if(phone){
